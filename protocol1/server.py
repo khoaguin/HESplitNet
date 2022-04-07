@@ -42,9 +42,9 @@ class ECGServer256:
         Based on https://pytorch.org/docs/stable/generated/torch.nn.Linear.html
         """
         if batch_encrypted:
-            enc_x.reshape_([batch_size, 256])
-        if type(W) is Tensor:
         # if batch_encrypted, then y's shape will be [1, 5], otherwise [batch_size, 5]
+            enc_x.reshape_([1, 256])
+        if type(W) is Tensor:
             y: CKKSTensor = enc_x.mm(W.T) + b
             print('forward with plaintext W')
         else: # CKKS Tensor
@@ -54,12 +54,16 @@ class ECGServer256:
         dydx = W
         return y, dydW, dydx
 
-    def forward(self, he_a: CKKSTensor, batch_encrypted: bool) -> CKKSTensor:
+    def forward(self, 
+                he_a: CKKSTensor,
+                batch_encrypted: bool,
+                batch_size: int) -> CKKSTensor:
         # a2 = a*W' + b
         he_a2, _, W = self.enc_linear(he_a, 
                                       self.params["W"],
                                       self.params["b"],
-                                      batch_encrypted)
+                                      batch_encrypted,
+                                      batch_size)
         self.cache["da2da"] = W
         return he_a2
 
@@ -185,7 +189,7 @@ class Server:
                                    data=he_a)
             if verbose: print("\U0001F601 Received he_a from the client")
             if verbose: print("Forward pass ---")
-            he_a2: CKKSTensor = self.ecg_model.forward(he_a, batch_encrypted)
+            he_a2: CKKSTensor = self.ecg_model.forward(he_a, batch_encrypted, batch_size)
             if verbose: print("\U0001F601 Sending he_a2 to the client")
             send_size1 = send_msg(sock=self.connection, msg=he_a2.serialize())
             

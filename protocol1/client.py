@@ -290,7 +290,7 @@ def main():
                             batch_size=hyperparams["batch_size"])
     
     # construct the tenseal context to encrypt data homomorphically
-    he_context: dict = {
+    he_context: Dict = {
         "P": 8192,  # polynomial_modulus_degree
         "C": [40, 21, 21, 21, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
         "Delta": pow(2, 21)  # the global scaling factor
@@ -311,9 +311,9 @@ def main():
     #         'train_accs': train_accs,
     #     })
     # if hyperparams["save_model"]:
-    #     df.to_csv('./outputs/loss_and_acc_8192.csv')
+    #     df.to_csv(project_path/'protocol1/outputs/loss_and_acc.csv')
     #     torch.save(client.ecg_model.state_dict(), 
-    #                './weights/trained_client_8192.pth')
+    #                project_path/'protocol1/weights/trained_client.pth')
 
 
 if __name__ == "__main__":
