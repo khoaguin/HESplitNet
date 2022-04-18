@@ -178,9 +178,12 @@ class Client:
         """
         if self.context == None:
             raise TypeError("Tenseal Context is None")
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        print(f'Client device: {self.device}')
-        print(f'Client GPU: {torch.cuda.get_device_name(0)}')
+        if torch.cuda.is_available():
+            self.device = torch.device('cuda') 
+            print(f'Client device: {torch.cuda.get_device_name(0)}')
+        else:
+            self.device = torch.device('cpu') 
+            print(f'Client device: {self.device}')
         self.ecg_model = EcgClient256(context=self.context, 
                                       init_weight_path=init_weight_path)
         self.ecg_model.to(self.device)
@@ -225,7 +228,7 @@ class Client:
 
     def training_loop(self, verbose, loss_func, optimizer, batch_encrypted):
         epoch_train_loss = 0.0
-        epoch_correct = 0 
+        epoch_correct = 0
         epoch_total_samples = 0
         for i, batch in enumerate(self.train_loader):
             if verbose: print("Forward Pass ---")
@@ -261,6 +264,8 @@ class Client:
             if verbose: print("\U0001F601 Received dJda from the server")
             dJda = CKKSTensor.load(context=self.context, data=dJda)
             dJda = dJda.decrypt().tolist()
+            # dJda, _ = recv_msg(sock=self.socket)
+            # dJda = pickle.loads(dJda)
             dJda = torch.Tensor(dJda).to(self.device)
             if dJda.shape != a.shape:
                 dJda = dJda.sum(dim=0)

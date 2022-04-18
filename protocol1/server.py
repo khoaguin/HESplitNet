@@ -1,3 +1,4 @@
+import math
 import pickle
 import socket
 from pathlib import Path
@@ -42,12 +43,11 @@ class ECGServer256:
         Based on https://pytorch.org/docs/stable/generated/torch.nn.Linear.html
         """
         if batch_encrypted:
-        # if batch_encrypted, then y's shape will be [1, 5], otherwise [batch_size, 5]
             enc_x.reshape_([1, 256])
         if type(W) is Tensor:
             y: CKKSTensor = enc_x.mm(W.T) + b
             print('forward with plaintext W')
-        else: # CKKS Tensor
+        else: # W is a CKKS Tensor
             y: CKKSTensor = enc_x.mm(W.transpose()) + b
             print('forward with encrypted W')
         dydW = enc_x
@@ -72,7 +72,9 @@ class ECGServer256:
                  he_a: CKKSTensor, 
                  context: Context) -> CKKSTensor:
         """Calculate the gradients of the loss function w.r.t the bias
-           and the encrypted activation map a received from the client    
+           and the weights of the server's linear layer
+           Also calculate the gradients of the loss function w.r.t the 
+           client's activation map (dJda)     
 
         Args:
             dJda2 (Tensor): the derivative of the loss function w.r.t the output
@@ -83,23 +85,28 @@ class ECGServer256:
 
         Returns:
             dJda (CKKSTensor): the derivative of the loss function w.r.t the
-                               activation map received from the client. 
-                               This will be sent to the client so he can calculate
-                               the gradients w.r.t the conv layers weights.
+                          activation map received from the client. 
+                          This will be sent to the client so he can calculate
+                          the gradients w.r.t the conv layers weights.
         """
+        # calculate dJdb (b: the server's bias)
         self.grads["dJdb"] = dJda2.sum(0)  # sum accross all samples in a batch
         assert self.grads["dJdb"].shape == self.params["b"].shape, \
             "dJdb and b must have the same shape"
 
-        _dJda2 = dJda2.sum(dim=0).reshape(1,5)
-        he_a = he_a.transpose()
-        self.grads["dJdW"] = (he_a.mm(_dJda2)).transpose()
+        # calculate dJdW (W: the server's weights)
+        _dJda2 = dJda2.mean(dim=0).reshape(1,5)
+        _he_a = he_a.transpose()
+        self.grads["dJdW"] = (_he_a.mm(_dJda2)).transpose()
         assert self.grads["dJdW"].shape == list(self.params["W"].shape), \
             f"dJdW and W must have the same shape"
         
+        # calculate dJda (a: the client's activation map)
         if type(self.cache["da2da"]) is Tensor:
+            print('dJda is a Tensor')
             dJda: Tensor = torch.matmul(dJda2, self.cache["da2da"])
-            dJda: CKKSTensor = ts.ckks_tensor(context, dJda.tolist())
+            # dJda = pickle.dumps(dJda.detach().to('cpu'))
+            dJda: CKKSTensor = ts.ckks_tensor(context, dJda.tolist(), batch=True)
         else:  # it is CKKSTensor
             temp = self.cache["da2da"].transpose()
             print(f'type of W: {type(self.cache["da2da"])}')
@@ -197,8 +204,8 @@ class Server:
             dJda2, recv_size2 = recv_msg(sock=self.connection)
             dJda2 = pickle.loads(dJda2)
             # self.ecg_model.check_update_grads(dJda2)
-            dJda: CKKSTensor = self.ecg_model.backward(dJda2, he_a, 
-                                                       self.client_ctx)
+            dJda = self.ecg_model.backward(dJda2, he_a, 
+                                           self.client_ctx)
             if verbose: print("\U0001F601 Sending dJda to the client")
             send_size2 = send_msg(sock=self.connection, msg=dJda.serialize())
             self.ecg_model.update_params(lr=lr) # updating the parameters
@@ -238,8 +245,8 @@ def main(hyperparams):
 if __name__ == "__main__":
     hyperparams = {
         'verbose': True,
-        'batch_size': 4,
-        'total_batch': 3312, # 3312 = 13245 / 4
+        'batch_size': 2,
+        'total_batch': math.ceil(13245/2),
         'epoch': 10,
         'lr': 0.001,
         'seed': 0,
