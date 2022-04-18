@@ -112,9 +112,9 @@ class ECGServer256:
             print(f'shape of W: {self.cache["da2da"].shape}')
             dJda: CKKSTensor = temp.mm(dJda2.T)
             dJda = dJda.transpose()
-            
-        print(f'dJda type: {type(dJda)}, dJda shape: {dJda.shape}')
 
+        print(f'dJda type: {type(dJda)}, dJda shape: {dJda.shape}')
+        
         return dJda
 
     def clear_grad_and_cache(self):

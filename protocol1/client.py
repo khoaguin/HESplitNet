@@ -267,8 +267,9 @@ class Client:
             # dJda, _ = recv_msg(sock=self.socket)
             # dJda = pickle.loads(dJda)
             dJda = torch.Tensor(dJda).to(self.device)
-            if dJda.shape != a.shape:
-                dJda = dJda.sum(dim=0)
+            print(f'dJda shape: {dJda.shape}')
+            assert dJda.shape == a.shape, \
+                "dJda and a must have the same shape"
             a.backward(dJda)  # calculating the gradients w.r.t the conv layers
             optimizer.step()  # updating the parameters
             end = time.time()
