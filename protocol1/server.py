@@ -103,7 +103,6 @@ class ECGServer256:
         
         # calculate dJda (a: the client's activation map)
         if type(self.cache["da2da"]) is Tensor:
-            print('dJda is a Tensor')
             dJda: Tensor = torch.matmul(dJda2, self.cache["da2da"])
             # dJda = pickle.dumps(dJda.detach().to('cpu'))
             dJda: CKKSTensor = ts.ckks_tensor(context, dJda.tolist(), batch=True)
@@ -113,6 +112,8 @@ class ECGServer256:
             print(f'shape of W: {self.cache["da2da"].shape}')
             dJda: CKKSTensor = temp.mm(dJda2.T)
             dJda = dJda.transpose()
+            
+        print(f'dJda type: {type(dJda)}, dJda shape: {dJda.shape}')
 
         return dJda
 
