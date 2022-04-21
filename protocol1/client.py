@@ -163,11 +163,14 @@ class Client:
         self.context.global_scale = he_context["Delta"]
         # self.context.generate_galois_keys()
     
-    def send_context(self) -> None:
-        """Send the context to the server
+    def send_context(self, send_secret_key) -> None:
+        """
+        Function used to send the context to the server
+        Args:
+            send_secret_key (bool): if True, send the secret key to the server (to debug)
         """
         _ = send_msg(sock=self.socket,
-                     msg=self.context.serialize(save_secret_key=False))
+                     msg=self.context.serialize(save_secret_key=send_secret_key))
 
     def build_model(self, init_weight_path: Union[str, Path]) -> None:
         """Build the neural network model for the client
@@ -302,11 +305,11 @@ def main():
         "Delta": pow(2, 21)  # the global scaling factor
     }
     client.make_tenseal_context(he_context)
+    send_sk = True
+    client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)
     if hyperparams["verbose"]:
         print(f"HE Context: {he_context}")
-        print("\U0001F601 Sending the context to the server (without the private key)")
-    client.send_context()  # only send the public context (private key dropped)
-
+        print(f"\U0001F601 Sending the context to the server. Sending the secret key: {send_sk}")
     # build the model and start training
     client.build_model(project_path/'protocol1/weights/init_weight.pth')
     train_losses, train_accs = client.train(hyperparams)

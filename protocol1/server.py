@@ -107,8 +107,8 @@ class ECGServer256:
             # dJda = pickle.dumps(dJda.detach().to('cpu'))
             dJda: CKKSTensor = ts.ckks_tensor(context, dJda.tolist(), batch=True)
         else:  # it is CKKSTensor
-            W_prime = self.cache["da2da"].transpose()  # da2da is W
-            dJda: CKKSTensor = W_prime.mm(dJda2.T)
+            W_tranpose = self.cache["da2da"].transpose()  # da2da is W
+            dJda: CKKSTensor = W_tranpose.mm(dJda2.T)
             dJda = dJda.transpose()
 
         print(f'dJda type: {type(dJda)}, dJda shape: {dJda.shape}')
