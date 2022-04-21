@@ -108,7 +108,7 @@ class ECGServer256:
             dJda: CKKSTensor = ts.ckks_tensor(context, dJda.tolist(), batch=True)
         else:  # it is CKKSTensor
             try:
-                print(f'Debugging: decrypting W: {self.cache["da2da"].decrypt()}')
+                print(f'Debugging: decrypting W: {self.cache["da2da"].decrypt().tolist()}')
             except:
                 pass
             W_tranpose = self.cache["da2da"].transpose()  # da2da is W
