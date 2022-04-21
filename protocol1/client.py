@@ -305,7 +305,8 @@ def main():
         "Delta": pow(2, 21)  # the global scaling factor
     }
     client.make_tenseal_context(he_context)
-    send_sk = True
+    if hyperparams["debugging"]:
+        send_sk = True
     client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)
     if hyperparams["verbose"]:
         print(f"HE Context: {he_context}")

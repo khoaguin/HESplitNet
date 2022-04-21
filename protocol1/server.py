@@ -102,11 +102,15 @@ class ECGServer256:
             f"dJdW and W must have the same shape"
         
         # calculate dJda (a: the client's activation map)
-        if type(self.cache["da2da"]) is Tensor:
+        if type(self.cache["da2da"]) is Tensor: # da2da is W
             dJda: Tensor = torch.matmul(dJda2, self.cache["da2da"])
             # dJda = pickle.dumps(dJda.detach().to('cpu'))
             dJda: CKKSTensor = ts.ckks_tensor(context, dJda.tolist(), batch=True)
         else:  # it is CKKSTensor
+            try:
+                print(f'Debugging: decrypting W: {self.cache["da2da"].decrypt()}')
+            except:
+                pass
             W_tranpose = self.cache["da2da"].transpose()  # da2da is W
             dJda: CKKSTensor = W_tranpose.mm(dJda2.T)
             dJda = dJda.transpose()
@@ -250,6 +254,7 @@ if __name__ == "__main__":
         'lr': 0.001,
         'seed': 0,
         'batch_encrypted': True,
-        'save_model': True
+        'save_model': True,
+        'debugging': True
     }
     main(hyperparams)
