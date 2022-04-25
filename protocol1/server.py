@@ -111,8 +111,8 @@ class ECGServer256:
                 print(f'Debugging: decrypting W: {self.cache["da2da"].decrypt()}')
             except:
                 pass
-            W_tranpose = self.cache["da2da"].transpose()  # da2da is W
-            dJda: CKKSTensor = W_tranpose.mm(dJda2.T)
+            W_transpose = self.cache["da2da"].transpose()  # da2da is W
+            dJda: CKKSTensor = W_transpose.mm(dJda2.T)
             dJda = dJda.transpose()
 
         print(f'dJda type: {type(dJda)}, dJda shape: {dJda.shape}')
