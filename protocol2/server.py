@@ -117,8 +117,8 @@ class ECGServer256:
         """
         Update the parameters based on the gradients calculated in backward()
         """
-        self.params["W"] = self.params["W"] - lr*self.grads["dJdW"]
-        self.params["b"] = self.params["b"] - lr*self.grads["dJdb"]
+        self.params["W"] = self.params["W"] - lr * self.grads["dJdW"]
+        self.params["b"] = self.params["b"] - lr * self.grads["dJdb"]
 
     def encrypt_weights(self, 
                     context: Context,
@@ -220,10 +220,10 @@ class Server:
             dJda2, recv_size2 = recv_msg(sock=self.connection)
             dJda2 = pickle.loads(dJda2)
             dJda = self.model.backward(dJda2, he_a)
+            self.model.update_params(lr=lr) # updating the parameters
             if verbose: print("\U0001F601 Sending dJda to the client")
             send_size2 = send_msg(sock=self.connection, msg=dJda.serialize())
             # send_size3 = send_msg(sock=self.connection, msg=)
-            self.model.update_params(lr=lr) # updating the parameters
             # calculate communication overhead
             communication = recv_size1 + recv_size2 + send_size1 + send_size2
             epoch_communication += communication
