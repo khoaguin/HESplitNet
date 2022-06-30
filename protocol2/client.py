@@ -282,8 +282,6 @@ class Client:
             if verbose: print("\U0001F601 Received dJda from the server")
             dJda = CKKSTensor.load(context=self.context, data=dJda)
             dJda = dJda.decrypt().tolist()
-            # dJda, _ = recv_msg(sock=self.socket)
-            # dJda = pickle.loads(dJda)
             dJda = torch.Tensor(dJda).to(self.device)
             print(f'dJda shape: {dJda.shape}')
             if dJda.shape != a.shape:

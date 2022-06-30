@@ -2,7 +2,7 @@ import math
 import pickle
 import socket
 from pathlib import Path
-from typing import Union
+from typing import Tuple, Union
 
 from sockets import send_msg, recv_msg
 
@@ -34,22 +34,21 @@ class ECGServer256:
 
     def enc_linear(self, 
                    enc_x: CKKSTensor, 
-                   W: Union[Tensor, CKKSTensor], 
+                   W: CKKSTensor, 
                    b: Tensor,
-                   batch_encrypted: bool,
-                   batch_size: int):
+                   batch_encrypted: bool) \
+            -> Tuple[CKKSTensor, CKKSTensor, CKKSTensor]:
         """
         The linear layer on homomorphic encrypted data
         Based on https://pytorch.org/docs/stable/generated/torch.nn.Linear.html
         """
         if batch_encrypted:
-            enc_x.reshape_([1, 256])
-        if type(W) is Tensor:
-            y: CKKSTensor = enc_x.mm(W.T) + b
-            print('forward with plaintext W')
-        else: # W is a CKKS Tensor
-            y: CKKSTensor = enc_x.mm(W.transpose()) + b
-            print('forward with encrypted W')
+            enc_x.reshape_([1, enc_x.shape[0]])
+        # if type(W) is Tensor:
+        #     y: CKKSTensor = enc_x.mm(W.T) + b
+        #     print('forward with plaintext W')
+        # W is a CKKS Tensor
+        y: CKKSTensor = enc_x.mm(W.transpose()) + b
         dydW = enc_x
         dydx = W
         return y, dydW, dydx
@@ -62,15 +61,13 @@ class ECGServer256:
         he_a2, _, W = self.enc_linear(he_a, 
                                       self.params["W"],
                                       self.params["b"],
-                                      batch_encrypted,
-                                      batch_size)
+                                      batch_encrypted)
         self.cache["da2da"] = W
         return he_a2
 
     def backward(self, 
                  dJda2: Tensor,
-                 he_a: CKKSTensor, 
-                 context: Context) -> CKKSTensor:
+                 he_a: CKKSTensor) -> CKKSTensor:
         """Calculate the gradients of the loss function w.r.t the bias
            and the weights of the server's linear layer
            Also calculate the gradients of the loss function w.r.t the 
@@ -81,8 +78,6 @@ class ECGServer256:
                             of the linear layer. shape: [batch_size, 5]
             he_a (CKKSTensor): the encrypted activation map received from the client.
                                
-            context (Context): the tenseal context, used to encrypt the output
-
         Returns:
             dJda (CKKSTensor): the derivative of the loss function w.r.t the
                           activation map received from the client. 
@@ -101,22 +96,14 @@ class ECGServer256:
         assert self.grads["dJdW"].shape == list(self.params["W"].shape), \
             f"dJdW and W must have the same shape"
         
-        # calculate dJda (a: the client's activation map)
-        if type(self.cache["da2da"]) is Tensor: # da2da is W
-            dJda: Tensor = torch.matmul(dJda2, self.cache["da2da"])
-            # dJda = pickle.dumps(dJda.detach().to('cpu'))
-            dJda: CKKSTensor = ts.ckks_tensor(context, dJda.tolist(), batch=True)
-        else:  # it is CKKSTensor
-            try:
-                print(f'Debugging: decrypting W: {self.cache["da2da"].decrypt()}')
-            except:
-                pass
-            W_transpose = self.cache["da2da"].transpose()  # da2da is W
-            dJda: CKKSTensor = W_transpose.mm(dJda2.T)
-            dJda = dJda.transpose()
-
-        print(f'dJda type: {type(dJda)}, dJda shape: {dJda.shape}')
-        
+        # calculate dJda to send to the client
+        # we have: dJ/da = dJ/da2 * da2/da
+        # because we can't multiply a torch tensor with a CKKSTensor
+        # but we can do the reverse way, we use the rule (dJ/da)' = (dJ/da2)' * (da2/da)'
+        da2da_transpose = self.cache["da2da"].transpose()  # da2da is W
+        dJda: CKKSTensor = da2da_transpose.mm(dJda2.T)
+        dJda = dJda.transpose()
+ 
         return dJda
 
     def clear_grad_and_cache(self):
@@ -148,7 +135,7 @@ class Server:
         self.connection = None
 
     def init_socket(self, host, port):
-        """[summary]
+        """Initialize the connection with the client
 
         Args:
             host ([str]): [description]
@@ -163,6 +150,9 @@ class Server:
         print(f'Connection: {self.connection} \nAddress: {addr}')
 
     def recv_ctx(self):
+        """Receive the context (in bytes) from the client 
+        and load it into the tenseal context
+        """
         client_ctx_bytes, _ = recv_msg(sock=self.connection)
         self.context: Context = Context.load(client_ctx_bytes)
 
@@ -170,7 +160,6 @@ class Server:
                     init_weight_path: Union[str, Path]) -> None:
         """Build the neural network model for the server
         """
-        print("building the model")
         self.model = ECGServer256(init_weight_path)
 
     def train(self, hyperparams: dict):
@@ -188,8 +177,9 @@ class Server:
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
-
-        self.model.encrypt_weights(self.context, batch_encrypted)  # encrypt the weights before training
+        
+        # encrypt the weights before training
+        self.model.encrypt_weights(self.context, batch_encrypted)  
         print(self.model.params["W"])
         for e in range(epoch):
             print(f"---- Epoch {e+1} ----")
@@ -229,11 +219,10 @@ class Server:
             if verbose: print("Backward pass --- ")
             dJda2, recv_size2 = recv_msg(sock=self.connection)
             dJda2 = pickle.loads(dJda2)
-            # self.model.check_update_grads(dJda2)
-            dJda = self.model.backward(dJda2, he_a, 
-                                           self.context)
+            dJda = self.model.backward(dJda2, he_a)
             if verbose: print("\U0001F601 Sending dJda to the client")
             send_size2 = send_msg(sock=self.connection, msg=dJda.serialize())
+            # send_size3 = send_msg(sock=self.connection, msg=)
             self.model.update_params(lr=lr) # updating the parameters
             # calculate communication overhead
             communication = recv_size1 + recv_size2 + send_size1 + send_size2
@@ -271,8 +260,8 @@ def main(hyperparams):
 if __name__ == "__main__":
     hyperparams = {
         'verbose': True,
-        'batch_size': 2,
-        'total_batch': math.ceil(13245/2),
+        'batch_size': 1,
+        'total_batch': math.ceil(13245/1),
         'epoch': 10,
         'lr': 0.001,
         'seed': 0,
