@@ -94,11 +94,8 @@ class EcgClient256(nn.Module):
         x = self.relu2(x)
         x = self.pool2(x)
         x = x.view(-1, 256)  # [batch_size, 256]
-        if batch_encrypted:
-            # if batch=True, then enc_x.shape = [256]
-            enc_x: CKKSTensor = ts.ckks_tensor(self.context, x.tolist(), batch=True)
-        else:
-            enc_x: CKKSTensor = ts.ckks_tensor(self.context, x.tolist(), batch=False)
+        # if batch_encrypted, enc_x will have shape [256]
+        enc_x: CKKSTensor = ts.CKKSTensor(self.context, x.tolist(), batch=batch_encrypted)
 
         return x, enc_x
 
@@ -283,9 +280,17 @@ class Client:
             dJda = CKKSTensor.load(context=self.context, data=dJda)
             dJda = dJda.decrypt().tolist()
             dJda = torch.Tensor(dJda).to(self.device)
-            print(f'dJda shape: {dJda.shape}')
+            # if verbose: print(f'dJda shape: {dJda.shape}')
             if dJda.shape != a.shape:
                 dJda = dJda.sum(dim=0)
+
+            server_W, _ = recv_msg(sock=self.socket)
+            if verbose: print("\U0001F601 Received W from the server")
+            server_W = CKKSTensor.load(context=self.context, data=server_W)
+            server_W = server_W.decrypt().tolist()
+            server_W = ts.CKKSTensor(self.context, server_W, batch=False)
+            send_msg(sock=self.socket, msg=server_W.serialize())
+
             a.backward(dJda)  # calculating the gradients w.r.t the conv layers
             optimizer.step()  # updating the parameters
             end = time.time()
@@ -312,9 +317,14 @@ def main():
                             batch_size=hyperparams["batch_size"])
     
     # construct the tenseal context to encrypt data homomorphically
+    # he_context: Dict = {
+    #     "P": 8192,  # polynomial_modulus_degree
+    #     "C": [40, 21, 21, 21, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
+    #     "Delta": pow(2, 21)  # the global scaling factor
+    # }
     he_context: Dict = {
         "P": 8192,  # polynomial_modulus_degree
-        "C": [40, 21, 21, 21, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
+        "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
         "Delta": pow(2, 21)  # the global scaling factor
     }
     client.make_tenseal_context(he_context)

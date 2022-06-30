@@ -31,6 +31,12 @@ class ECGServer256:
         )
         self.grads = dict()
         self.cache = dict()
+    
+    def weights(self):
+        return self.params["W"]
+    
+    def set_weights(self, W: CKKSTensor):
+        self.params[W] = W
 
     def enc_linear(self, 
                    enc_x: CKKSTensor, 
@@ -49,6 +55,7 @@ class ECGServer256:
         #     print('forward with plaintext W')
         # W is a CKKS Tensor
         y: CKKSTensor = enc_x.mm(W.transpose()) + b
+        # y: CKKSTensor = enc_x.mm(W) + b
         dydW = enc_x
         dydx = W
         return y, dydW, dydx
@@ -123,7 +130,11 @@ class ECGServer256:
     def encrypt_weights(self, 
                     context: Context,
                     batch_enc: bool) -> None:
-        self.params["W"] = ts.ckks_tensor(context, self.params["W"].tolist(), batch_enc)
+        self.params["W"] = ts.ckks_tensor(context=context, 
+                                tensor=self.params["W"].tolist(), 
+                                batch=False)
+        # if batch_enc:
+            # self.params["W"].reshape_([1, 256])
 
 
 class Server:
@@ -220,12 +231,20 @@ class Server:
             dJda2, recv_size2 = recv_msg(sock=self.connection)
             dJda2 = pickle.loads(dJda2)
             dJda = self.model.backward(dJda2, he_a)
-            self.model.update_params(lr=lr) # updating the parameters
             if verbose: print("\U0001F601 Sending dJda to the client")
             send_size2 = send_msg(sock=self.connection, msg=dJda.serialize())
-            # send_size3 = send_msg(sock=self.connection, msg=)
+            if verbose: print("\U0001F601 Sending W to the client")
+            W = self.model.weights()
+            send_size3 = send_msg(sock=self.connection, msg=W.serialize())
+            W, recv_size3 = recv_msg(sock=self.connection)
+            W = CKKSTensor.load(context=self.context,
+                                data=W)
+            if verbose: print("\U0001F601 Received boostrapped W to the client")
+            self.model.set_weights(W)
+            self.model.update_params(lr=lr) # updating the parameters
             # calculate communication overhead
-            communication = recv_size1 + recv_size2 + send_size1 + send_size2
+            communication = recv_size1 + recv_size2 + recv_size3 +\
+                 send_size1 + send_size2 + send_size3
             epoch_communication += communication
             if verbose: print(f"Communication for batch {i}: {communication} (Mb)")
 
@@ -260,8 +279,8 @@ def main(hyperparams):
 if __name__ == "__main__":
     hyperparams = {
         'verbose': True,
-        'batch_size': 1,
-        'total_batch': math.ceil(13245/1),
+        'batch_size': 2,
+        'total_batch': math.ceil(13245/2),
         'epoch': 10,
         'lr': 0.001,
         'seed': 0,
