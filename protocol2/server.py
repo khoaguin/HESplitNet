@@ -4,7 +4,7 @@ import socket
 from pathlib import Path
 from typing import Tuple, Union
 
-from sockets import send_msg, recv_msg
+from utils import send_msg, recv_msg
 
 import numpy as np
 import tenseal as ts
@@ -267,13 +267,14 @@ def main(hyperparams):
         print("\U0001F601 Received the TenSeal context from the Client")
 
     # # build and train the model
-    server.build_model(project_path/'protocol1/weights/init_weight.pth')
-    server.train(hyperparams)
+    server.build_model(project_path/'protocol2/weights/init_weight.pth')
+    # server.train(hyperparams)
 
+    output_dir = project_path / 'protocol2/outputs' / hyperparams["output_dir"]
     # save the model to .pth file
-    # if hyperparams["save_model"]:
-    #     torch.save(server.model.params, 
-    #                './weights/trained_server_8192.pth')
+    if hyperparams["save_model"]:
+        torch.save(server.model.params, 
+                   output_dir / 'trained_server.pth')
 
 
 if __name__ == "__main__":
@@ -286,6 +287,7 @@ if __name__ == "__main__":
         'seed': 0,
         'batch_encrypted': True,
         'save_model': True,
-        'debugging': False
+        'debugging': False,
+        'output_dir': 'Jul_1_8192'
     }
     main(hyperparams)

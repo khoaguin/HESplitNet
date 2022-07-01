@@ -5,10 +5,13 @@ from pathlib import Path
 from typing import Union, Tuple, Dict
 import json
 
-from sockets import send_msg, recv_msg
+from nbformat import write
+
+from utils import write_params, send_msg, recv_msg
 
 import h5py
 import numpy as np
+import pandas as pd
 import tenseal as ts
 import torch
 from torch.autograd import grad
@@ -312,11 +315,6 @@ def main():
         print("\U0001F601 Received the hyperparameters from the Server")
         print(hyperparams)
 
-    # load the dataset
-    client.load_ecg_dataset(train_name=project_path/"data/train_ecg.hdf5",
-                            test_name=project_path/"data/test_ecg.hdf5",
-                            batch_size=hyperparams["batch_size"])
-    
     # construct the tenseal context to encrypt data homomorphically
     # he_context: Dict = {
     #     "P": 8192,  # polynomial_modulus_degree
@@ -328,28 +326,35 @@ def main():
         "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
         "Delta": pow(2, 21)  # the global scaling factor
     }
-    with open('outputs/output1.txt', 'w') as f:
-        f.write(json.dumps(he_context))
-        f.write(json.dumps(hyperparams))
+    output_dir = project_path / 'protocol2/outputs' / hyperparams["output_dir"]
+    output_dir.mkdir()
+    write_params(output_dir/'params.txt', he_context, hyperparams)
+
     client.make_tenseal_context(he_context)
+
     send_sk = True if hyperparams["debugging"] else False 
     client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)
     if hyperparams["verbose"]:
         print(f"HE Context: {he_context}")
         print(f"\U0001F601 Sending the context to the server. Sending the secret key: {send_sk}")
+    
+    # load the dataset
+    client.load_ecg_dataset(train_name=project_path/"data/train_ecg.hdf5",
+                            test_name=project_path/"data/test_ecg.hdf5",
+                            batch_size=hyperparams["batch_size"])
     # build the model and start training
-    client.build_model(project_path/'protocol1/weights/init_weight.pth')
+    client.build_model(project_path/'protocol2/weights/init_weight.pth')
     train_losses, train_accs = client.train(hyperparams)
 
-    # # after the training is done, save the results and the trained models
-    # df = pd.DataFrame({  # save model training process into csv file
-    #         'train_losses': train_losses,
-    #         'train_accs': train_accs,
-    #     })
-    # if hyperparams["save_model"]:
-    #     df.to_csv(project_path/'protocol1/outputs/loss_and_acc.csv')
-    #     torch.save(client.ecg_model.state_dict(), 
-    #                project_path/'protocol1/weights/trained_client.pth')
+    # after the training is done, save the results and the trained models
+    if hyperparams["save_model"]:    
+        df = pd.DataFrame({  # save model training process into csv file
+            'train_losses': train_losses,
+            'train_accs': train_accs,
+        })
+        df.to_csv(output_dir / 'loss_and_acc.csv')
+        torch.save(client.ecg_model.state_dict(), 
+                   output_dir / 'trained_client.pth')
 
 
 if __name__ == "__main__":
