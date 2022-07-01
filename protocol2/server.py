@@ -268,7 +268,7 @@ def main(hyperparams):
 
     # # build and train the model
     server.build_model(project_path/'protocol2/weights/init_weight.pth')
-    # server.train(hyperparams)
+    server.train(hyperparams)
 
     output_dir = project_path / 'protocol2/outputs' / hyperparams["output_dir"]
     # save the model to .pth file

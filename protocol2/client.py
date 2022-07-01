@@ -327,7 +327,7 @@ def main():
         "Delta": pow(2, 21)  # the global scaling factor
     }
     output_dir = project_path / 'protocol2/outputs' / hyperparams["output_dir"]
-    output_dir.mkdir()
+    output_dir.mkdir(parents=True)
     write_params(output_dir/'params.txt', he_context, hyperparams)
 
     client.make_tenseal_context(he_context)
