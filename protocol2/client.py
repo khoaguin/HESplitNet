@@ -3,6 +3,7 @@ import socket
 import time
 from pathlib import Path
 from typing import Union, Tuple, Dict
+import json
 
 from sockets import send_msg, recv_msg
 
@@ -327,6 +328,9 @@ def main():
         "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
         "Delta": pow(2, 21)  # the global scaling factor
     }
+    with open('outputs/output1.txt', 'w') as f:
+        f.write(json.dumps(he_context))
+        f.write(json.dumps(hyperparams))
     client.make_tenseal_context(he_context)
     send_sk = True if hyperparams["debugging"] else False 
     client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)

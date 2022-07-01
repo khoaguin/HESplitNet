@@ -153,7 +153,7 @@ class Server:
             port ([int]): [description]
         """
         self.socket = socket.socket()
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((host, port))  # associates the socket with its local address
         self.socket.listen()
         print('Listening on', (host, port))
