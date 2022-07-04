@@ -289,11 +289,12 @@ class Client:
                 dJda = dJda.sum(dim=0)
 
             server_W, _ = recv_msg(sock=self.socket)
-            if verbose: print("\U0001F601 Received W from the server")
+            if verbose: print("\U0001F601 Received encrypted W from the server")
             server_W = CKKSTensor.load(context=self.context, data=server_W)
             server_W = server_W.decrypt().tolist()
-            server_W = ts.CKKSTensor(self.context, server_W, batch=False)
-            send_msg(sock=self.socket, msg=server_W.serialize())
+            # server_W = ts.CKKSTensor(self.context, server_W, batch=False)
+            if verbose: print("\U0001F601 Send W to the server")
+            send_msg(sock=self.socket, msg=pickle.dumps(server_W))
 
             a.backward(dJda)  # calculating the gradients w.r.t the conv layers
             optimizer.step()  # updating the parameters
@@ -327,7 +328,7 @@ def main():
         "Delta": pow(2, 21)  # the global scaling factor
     }
     output_dir = project_path / 'protocol2/outputs' / hyperparams["output_dir"]
-    output_dir.mkdir(parents=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     write_params(output_dir/'params.txt', he_context, hyperparams)
 
     client.make_tenseal_context(he_context)

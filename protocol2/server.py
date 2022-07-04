@@ -2,7 +2,7 @@ import math
 import pickle
 import socket
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 
 from utils import send_msg, recv_msg
 
@@ -35,7 +35,8 @@ class ECGServer256:
     def weights(self):
         return self.params["W"]
     
-    def set_weights(self, W: CKKSTensor):
+    def set_weights(self, 
+                W: CKKSTensor):
         self.params[W] = W
 
     def enc_linear(self, 
@@ -191,7 +192,7 @@ class Server:
         
         # encrypt the weights before training
         self.model.encrypt_weights(self.context, batch_encrypted)  
-        print(self.model.params["W"])
+        # print(self.model.params["W"])
         for e in range(epoch):
             print(f"---- Epoch {e+1} ----")
             self.training_loop(total_batch, verbose, lr, batch_encrypted, epoch, batch_size)
@@ -222,6 +223,7 @@ class Server:
             he_a = CKKSTensor.load(context=self.context,
                                    data=he_a)
             if verbose: print("\U0001F601 Received he_a from the client")
+            
             if verbose: print("Forward pass ---")
             he_a2: CKKSTensor = self.model.forward(he_a, batch_encrypted, batch_size)
             if verbose: print("\U0001F601 Sending he_a2 to the client")
@@ -230,17 +232,22 @@ class Server:
             if verbose: print("Backward pass --- ")
             dJda2, recv_size2 = recv_msg(sock=self.connection)
             dJda2 = pickle.loads(dJda2)
+            if verbose: print("\U0001F601 Received dJda2 from the client")
             dJda = self.model.backward(dJda2, he_a)
             if verbose: print("\U0001F601 Sending dJda to the client")
             send_size2 = send_msg(sock=self.connection, msg=dJda.serialize())
-            if verbose: print("\U0001F601 Sending W to the client")
+            
+            if verbose: print("\U0001F601 Sending encrypted W to the client")
             W = self.model.weights()
             send_size3 = send_msg(sock=self.connection, msg=W.serialize())
             W, recv_size3 = recv_msg(sock=self.connection)
-            W = CKKSTensor.load(context=self.context,
-                                data=W)
-            if verbose: print("\U0001F601 Received boostrapped W to the client")
+            if verbose: print("\U0001F601 Received decrypted W from the client")
+            W = pickle.loads(W)
+            # W = CKKSTensor.load(context=self.context,
+            #                     data=W)
+            W = ts.ckks_tensor(context=self.context, tensor=W, batch=False)
             self.model.set_weights(W)
+
             self.model.update_params(lr=lr) # updating the parameters
             # calculate communication overhead
             communication = recv_size1 + recv_size2 + recv_size3 +\
@@ -280,14 +287,14 @@ def main(hyperparams):
 if __name__ == "__main__":
     hyperparams = {
         'verbose': True,
-        'batch_size': 2,
-        'total_batch': math.ceil(13245/2),
+        'batch_size': 1,
+        'total_batch': math.ceil(13245/1),
         'epoch': 10,
         'lr': 0.001,
         'seed': 0,
         'batch_encrypted': True,
         'save_model': True,
         'debugging': False,
-        'output_dir': 'Jul_1_8192'
+        'output_dir': 'Jul_4_8192'
     }
     main(hyperparams)
