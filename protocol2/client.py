@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import Union, Tuple, Dict
 import json
+import math
 
 from nbformat import write
 
@@ -196,7 +197,7 @@ class Client:
         seed = hyperparams["seed"]
         verbose = hyperparams["verbose"]
         lr = hyperparams["lr"]
-        total_batch = hyperparams["total_batch"]
+        total_batch = math.ceil(13245 / hyperparams["batch_size"])
         epoch = hyperparams["epoch"]
         batch_encrypted = hyperparams['batch_encrypted']
         # set random seed

@@ -1,2 +1,0 @@
-HE parameters: {"P": 8192, "C": [40, 21, 21, 21, 40], "Delta": 2097152}
-Neural net hyperparameters: {"verbose": true, "batch_size": 4, "total_batch": 3312, "epoch": 10, "lr": 0.001, "seed": 0, "batch_encrypted": true, "save_model": true, "debugging": false, "output_dir": "Jul_11_8192_batch4"}

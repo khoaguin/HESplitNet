@@ -178,7 +178,7 @@ class Server:
         seed = hyperparams["seed"]
         verbose = hyperparams["verbose"]
         lr = hyperparams["lr"]
-        total_batch = hyperparams["total_batch"]
+        total_batch = math.ceil(13245 / hyperparams["batch_size"])
         epoch = hyperparams["epoch"]
         batch_encrypted = hyperparams["batch_encrypted"]
         batch_size = hyperparams["batch_size"]
@@ -287,14 +287,14 @@ def main(hyperparams):
 if __name__ == "__main__":
     hyperparams = {
         'verbose': True,
-        'batch_size': 4,
-        'total_batch': math.ceil(13245/4),
+        'batch_size': 2,
+        # 'total_batch': math.ceil(13245/2),
         'epoch': 10,
         'lr': 0.001,
         'seed': 0,
         'batch_encrypted': True,
         'save_model': True,
         'debugging': False,
-        'output_dir': 'Jul_11_8192_batch4'
+        'output_dir': 'Jul_11_8192_batch2'
     }
     main(hyperparams)
