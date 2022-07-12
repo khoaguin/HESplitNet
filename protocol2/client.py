@@ -250,7 +250,7 @@ class Client:
         epoch_correct = 0
         epoch_total_samples = 0
         for i, batch in enumerate(self.train_loader):
-            if verbose: print("Forward Pass ---")
+            if verbose: print(f"Batch {i+1}\nForward Pass ---")
             start = time.time()
             optimizer.zero_grad()
             x, y = batch  # get the input data and ground-truth output in the batch
@@ -258,6 +258,7 @@ class Client:
             a, he_a = self.ecg_model.forward(x, batch_encrypted)
             if verbose: print("\U0001F601 Sending he_a to the server")
             send_msg(sock=self.socket, msg=he_a.serialize())
+            
             he_a2, _ = recv_msg(sock=self.socket)
             he_a2 = CKKSTensor.load(context=self.context,
                                     data=he_a2)
@@ -272,21 +273,22 @@ class Client:
             epoch_train_loss += batch_loss.item()
             epoch_correct += torch.sum(y_hat.argmax(dim=1) == y).item()
             epoch_total_samples += len(y)
-            if verbose: print(f'batch {i+1} loss: {batch_loss:.4f}')
+            if verbose: print(f'Batch {i+1} loss: {batch_loss:.4f}')
             
             if verbose: print("Backward Pass ---")
             batch_loss.backward()
             dJda2: Tensor = a2.grad.clone().detach().to('cpu')
-            if verbose: print("\U0001F601 Sending dJda2 to the server")
             send_msg(sock=self.socket, msg=pickle.dumps(dJda2))
+            if verbose: print("\U0001F601 Sending dJda2 to the server")
+            
             dJda, _ = recv_msg(sock=self.socket)
             if verbose: print("\U0001F601 Received dJda from the server")
             dJda = CKKSTensor.load(context=self.context, data=dJda)
             dJda = dJda.decrypt().tolist()
             dJda = torch.Tensor(dJda).to(self.device)
             # if verbose: print(f'dJda shape: {dJda.shape}')
-            if dJda.shape != a.shape:
-                dJda = dJda.sum(dim=0)
+            # if dJda.shape != a.shape:
+            #     dJda = dJda.sum(dim=0)
 
             server_W, _ = recv_msg(sock=self.socket)
             if verbose: print("\U0001F601 Received encrypted W from the server")
@@ -295,11 +297,11 @@ class Client:
             # server_W = ts.CKKSTensor(self.context, server_W, batch=False)
             if verbose: print("\U0001F601 Send W to the server")
             send_msg(sock=self.socket, msg=pickle.dumps(server_W))
-
+            
             a.backward(dJda)  # calculating the gradients w.r.t the conv layers
             optimizer.step()  # updating the parameters
             end = time.time()
-            if verbose: print(f"training time for 1 batch: {end-start:.2f}s")
+            if verbose: print(f"Training time for batch {i+1}: {end-start:.2f}s\n")
 
         return epoch_train_loss, epoch_correct, epoch_total_samples
 

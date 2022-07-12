@@ -23,7 +23,8 @@ def send_msg(sock, msg):
 
 def recv_msg(sock):
     '''
-    Receive the message and return it in bytes as well as the size in Mb
+    Receive the message and return it in bytes 
+    as well as the size in Mb
     '''
     # read message length and unpack it into an integer
     raw_msglen, _ = recvall(sock, 4)
@@ -39,6 +40,7 @@ def recvall(sock, n):
     data = b''
     count = 0
     while len(data) < n:
+        # print(n-len(data))
         packet = sock.recv(n - len(data))
         if not packet:
             return None

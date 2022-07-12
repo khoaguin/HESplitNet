@@ -218,6 +218,7 @@ class Server:
         """
         epoch_communication = 0
         for i in range(total_batch):
+            if verbose: print(f"Batch {i+1}")
             self.model.clear_grad_and_cache()
             he_a, recv_size1 = recv_msg(sock=self.connection)
             he_a = CKKSTensor.load(context=self.context,
@@ -231,21 +232,20 @@ class Server:
             
             if verbose: print("Backward pass --- ")
             dJda2, recv_size2 = recv_msg(sock=self.connection)
-            dJda2 = pickle.loads(dJda2)
+            dJda2: Tensor = pickle.loads(dJda2)
             if verbose: print("\U0001F601 Received dJda2 from the client")
-            dJda = self.model.backward(dJda2, he_a)
-            if verbose: print("\U0001F601 Sending dJda to the client")
-            send_size2 = send_msg(sock=self.connection, msg=dJda.serialize())
             
-            if verbose: print("\U0001F601 Sending encrypted W to the client")
-            W = self.model.weights()
+            dJda: CKKSTensor = self.model.backward(dJda2, he_a)
+            send_size2 = send_msg(sock=self.connection, msg=dJda.serialize())
+            if verbose: print("\U0001F601 Sending dJda to the client")
+            
+            W: CKKSTensor = self.model.weights()
             send_size3 = send_msg(sock=self.connection, msg=W.serialize())
+            if verbose: print("\U0001F601 Sending encrypted W to the client")
             W, recv_size3 = recv_msg(sock=self.connection)
             if verbose: print("\U0001F601 Received decrypted W from the client")
             W = pickle.loads(W)
-            # W = CKKSTensor.load(context=self.context,
-            #                     data=W)
-            W = ts.ckks_tensor(context=self.context, tensor=W, batch=False)
+            W: CKKSTensor = ts.ckks_tensor(context=self.context, tensor=W, batch=False)
             self.model.set_weights(W)
 
             self.model.update_params(lr=lr) # updating the parameters
@@ -253,7 +253,7 @@ class Server:
             communication = recv_size1 + recv_size2 + recv_size3 +\
                  send_size1 + send_size2 + send_size3
             epoch_communication += communication
-            if verbose: print(f"Communication for batch {i}: {communication} (Mb)")
+            if verbose: print(f"Communication for batch {i+1}: {communication} (Mb)\n")
 
         print(f"Communication for epoch {epoch}: "
               f"{epoch_communication*1e-6 :.4f} (Tb)")
@@ -287,14 +287,14 @@ def main(hyperparams):
 if __name__ == "__main__":
     hyperparams = {
         'verbose': True,
-        'batch_size': 1,
-        'total_batch': math.ceil(13245/1),
+        'batch_size': 4,
+        'total_batch': math.ceil(13245/4),
         'epoch': 10,
         'lr': 0.001,
         'seed': 0,
         'batch_encrypted': True,
         'save_model': True,
         'debugging': False,
-        'output_dir': 'Jul_4_8192'
+        'output_dir': 'Jul_11_8192_batch4'
     }
     main(hyperparams)
