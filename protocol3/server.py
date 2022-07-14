@@ -3,6 +3,7 @@ import pickle
 import socket
 from pathlib import Path
 from typing import Tuple, Union, List
+import sys
 
 from utils import send_msg, recv_msg
 
@@ -39,30 +40,27 @@ class ECGServer256:
         self.params["W"] = W
 
     def enc_linear(self, 
-                   enc_x: CKKSTensor, 
-                   W: CKKSTensor, 
+                   enc_a_t: CKKSTensor,
+                   enc_W_t: CKKSTensor, 
                    b: Tensor,
                    batch_encrypted: bool) \
             -> Tuple[CKKSTensor, CKKSTensor, CKKSTensor]:
         """
         The linear layer on homomorphic encrypted data
-        Based on https://pytorch.org/docs/stable/generated/torch.nn.Linear.html
         """
-        if batch_encrypted:
-            enc_x = enc_x.reshape([1, enc_x.shape[0]])
-        # W is a CKKS Tensor
-        y: CKKSTensor = enc_x.mm(W.transpose()) + b
-        dydW = enc_x
-        dydx = W
-        return y, dydW, dydx
+        enc_a2: CKKSTensor = (enc_a_t.transpose()).mm(enc_W_t) + b
+        # y: CKKSTensor = enc_a_t.mm(W.transpose()) + b
+        # dydW = enc_x
+        # dydx = W
+        return enc_a2
 
     def forward(self, 
-                he_a: CKKSTensor,
-                batch_encrypted: bool,
-                batch_size: int) -> CKKSTensor:
-        # a2 = a*W' + b
-        he_a2, _, W = self.enc_linear(he_a, 
-                                      self.params["W"],
+                enc_a_t: CKKSTensor,
+                context: Context,
+                batch_encrypted: bool) -> CKKSTensor:
+        enc_W_t = self.transpose_encrypt_weights(context, batch_encrypted)
+        he_a2, _, W = self.enc_linear(enc_a_t, 
+                                      enc_W_t,
                                       self.params["b"],
                                       batch_encrypted)
         self.cache["da2da"] = W
@@ -132,6 +130,17 @@ class ECGServer256:
         if batch_enc:
             self.params["W"].reshape_([1, 256])
 
+    def transpose_encrypt_weights(self, 
+                    context: Context,
+                    batch_enc: bool) -> None:
+        W_t = self.params["W"].T
+        enc_W_t = ts.ckks_tensor(context=context, 
+                                tensor=W_t.tolist(), 
+                                batch=batch_enc)
+        enc_W_t.reshape_([1, enc_W_t.shape[0]])
+
+        return enc_W_t
+
     def encrypt_bias(self, 
                 context: Context,
                 batch_enc: bool) -> None:
@@ -158,7 +167,7 @@ class Server:
             port ([int]): [description]
         """
         self.socket = socket.socket()
-        # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((host, port))  # associates the socket with its local address
         self.socket.listen()
         print('Listening on', (host, port))
@@ -195,8 +204,8 @@ class Server:
         torch.backends.cudnn.deterministic = True
         
         # encrypt the weights before training
-        self.model.encrypt_weights(self.context, batch_encrypted)  
-        self.model.encrypt_bias(self.context, batch_encrypted)
+        # self.model.encrypt_weights(self.context, batch_encrypted)  
+        # self.model.encrypt_bias(self.context, batch_encrypted)
         for e in range(epoch):
             print(f"---- Epoch {e+1} ----")
             self.training_loop(total_batch, verbose, lr, batch_encrypted, epoch, batch_size)
@@ -224,22 +233,22 @@ class Server:
         for i in range(total_batch):
             if verbose: print(f"Batch {i+1}")
             self.model.clear_grad_and_cache()
-            he_a, recv_size1 = recv_msg(sock=self.connection)
-            he_a = CKKSTensor.load(context=self.context,
-                                   data=he_a)
-            if verbose: print("\U0001F601 Received he_a from the client")
+            enc_a_t, recv_size1 = recv_msg(sock=self.connection)
+            enc_a_t = CKKSTensor.load(context=self.context,
+                                   data=enc_a_t)
+            if verbose: print(f"\U0001F601 Received he_a_t of shape {enc_a_t.shape} from the client")
             
             if verbose: print("Forward pass ---")
-            he_a2: CKKSTensor = self.model.forward(he_a, batch_encrypted, batch_size)
+            enc_a2: CKKSTensor = self.model.forward(enc_a_t, self.context, batch_encrypted)
             if verbose: print("\U0001F601 Sending he_a2 to the client")
-            send_size1 = send_msg(sock=self.connection, msg=he_a2.serialize())
-            
+            send_size1 = send_msg(sock=self.connection, msg=enc_a2.serialize())
+
             if verbose: print("Backward pass --- ")
             dJda2, recv_size2 = recv_msg(sock=self.connection)
             dJda2: Tensor = pickle.loads(dJda2)
             if verbose: print("\U0001F601 Received dJda2 from the client")
-            
-            dJda: CKKSTensor = self.model.backward(dJda2, he_a)
+
+            dJda: CKKSTensor = self.model.backward(dJda2, enc_a_t)
             send_size2 = send_msg(sock=self.connection, msg=dJda.serialize())
             if verbose: print("\U0001F601 Sending dJda to the client")
             
@@ -291,7 +300,7 @@ def main(hyperparams):
 if __name__ == "__main__":
     hyperparams = {
         'verbose': True,
-        'batch_size': 1,
+        'batch_size': 4,
         # 'total_batch': math.ceil(13245/2),
         'epoch': 10,
         'lr': 0.001,

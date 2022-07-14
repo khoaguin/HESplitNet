@@ -1,3 +1,4 @@
+from curses import echo
 import pickle
 import socket
 import time
@@ -5,6 +6,7 @@ from pathlib import Path
 from typing import Union, Tuple, Dict
 import json
 import math
+import sys
 
 from nbformat import write
 
@@ -91,7 +93,7 @@ class EcgClient256(nn.Module):
         self.conv2.weight.data = checkpoint["conv2.weight"]
         self.conv2.bias.data = checkpoint["conv2.bias"]
 
-    def forward(self, x: Tensor, batch_encrypted: bool) -> Tuple[Tensor, CKKSTensor]:
+    def forward(self, x: Tensor) -> Tensor:
         x = self.conv1(x)  
         x = self.relu1(x)
         x = self.pool1(x)  
@@ -99,10 +101,28 @@ class EcgClient256(nn.Module):
         x = self.relu2(x)
         x = self.pool2(x)
         x = x.view(-1, 256)  # [batch_size, 256]
-        # if batch_encrypted, enc_x will have shape [256]
-        enc_x: CKKSTensor = ts.CKKSTensor(self.context, x.tolist(), batch=batch_encrypted)
+        
+        return x
 
-        return x, enc_x
+    def transpose_encrypt(self, a: Tensor, batch_enc: bool) -> CKKSTensor:
+        """_summary_
+
+        Args:
+            a (Tensor): The plaintext activation maps
+                from the forward function
+            batch_enc (bool): if true, encrypt using batching 
+
+        Returns:
+            CKKSTensor: the transposed, encrypted activation maps
+        """
+        a_t = a.T
+        # if batch_encrypted, enc_x will have shape [256]
+        enc_a_t: CKKSTensor = ts.CKKSTensor(self.context, 
+                        a_t.tolist(),
+                        batch=batch_enc)
+        enc_a_t.reshape_([1, enc_a_t.shape[0]])
+        
+        return enc_a_t
 
 
 class Client:
@@ -256,10 +276,12 @@ class Client:
             optimizer.zero_grad()
             x, y = batch  # get the input data and ground-truth output in the batch
             x, y = x.to(self.device), y.to(self.device)  # put to cuda or cpu
-            a, he_a = self.ecg_model.forward(x, batch_encrypted)
-            if verbose: print("\U0001F601 Sending he_a to the server")
-            send_msg(sock=self.socket, msg=he_a.serialize())
-            
+            a = self.ecg_model.forward(x)
+            enc_a_t = self.ecg_model.transpose_encrypt(a, batch_encrypted)
+            if verbose: print(f"\U0001F601 Sending he_a_t of shape {enc_a_t.shape} to the server")
+            send_msg(sock=self.socket, msg=enc_a_t.serialize())
+            # print(f'size of serialized he_a: {sys.getsizeof(he_a.serialize()) / 10**6} Mb')
+
             he_a2, _ = recv_msg(sock=self.socket)
             he_a2 = CKKSTensor.load(context=self.context,
                                     data=he_a2)
