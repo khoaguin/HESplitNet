@@ -252,7 +252,7 @@ class Server:
             epoch_communication += communication
 
         print(f"Communication for epoch {epoch}: "
-              f"{epoch_communication*1e-6 :.4f} (Tb)")
+              f"{epoch_communication:.4f} (Mb)")
 
 
 def main(hyperparams):
