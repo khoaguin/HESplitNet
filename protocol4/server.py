@@ -290,7 +290,7 @@ if __name__ == "__main__":
         'seed': 0,
         'batch_encrypted': True,
         'save_model': True,
-        'debugging': True,
+        'debugging': False,
         'output_dir': 'Jul_15_8192_batch16'
     }
     main(hyperparams)
