@@ -282,8 +282,8 @@ def main(hyperparams):
 
 if __name__ == "__main__":
     hyperparams = {
-        'verbose': False,
-        'batch_size': 16,
+        'verbose': True,
+        'batch_size': 32,
         # 'total_batch': math.ceil(13245/2),
         'epoch': 10,
         'lr': 0.001,
@@ -291,6 +291,6 @@ if __name__ == "__main__":
         'batch_encrypted': True,
         'save_model': True,
         'debugging': False,
-        'output_dir': 'Jul_15_8192_batch16'
+        'output_dir': 'Jul_15_8192_batch32'
     }
     main(hyperparams)

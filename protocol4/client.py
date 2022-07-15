@@ -302,7 +302,6 @@ class Client:
             epoch_train_loss += batch_loss.item()
             epoch_correct += torch.sum(y_hat.argmax(dim=1) == y).item()
             epoch_total_samples += len(y)
-            if verbose: print(f'Batch {i+1} loss: {batch_loss:.4f}')
             
             if verbose: print("Backward Pass ---")
             batch_loss.backward()
@@ -327,6 +326,7 @@ class Client:
             if verbose: print(f"\U0001F601 Send decrypted W of shape {server_Wt.shape} to the server")
             
             end = time.time()
+            if verbose: print(f'Batch {i+1} loss: {batch_loss:.4f}')
             if verbose: print(f"Training time for batch {i+1}: {end-start:.2f}s\n")
 
         return epoch_train_loss, epoch_correct, epoch_total_samples
