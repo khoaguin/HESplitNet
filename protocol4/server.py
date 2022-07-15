@@ -282,7 +282,7 @@ def main(hyperparams):
 
 if __name__ == "__main__":
     hyperparams = {
-        'verbose': True,
+        'verbose': False,
         'batch_size': 16,
         # 'total_batch': math.ceil(13245/2),
         'epoch': 10,

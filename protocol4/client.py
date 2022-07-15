@@ -1,4 +1,3 @@
-from curses import echo
 import pickle
 import socket
 import time
