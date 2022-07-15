@@ -248,7 +248,7 @@ class Server:
             # calculate communication overhead
             communication = recv_size1 + recv_size2 + recv_size3 + recv_size4 +\
                  send_size1 + send_size2 + send_size3
-            if verbose: print(f"Communication for batch {i+1}: {communication} (Mb)\n")
+            if verbose: print(f"Communication for batch {i+1}/{total_batch}: {communication} (Mb)\n")
             epoch_communication += communication
 
         print(f"Communication for epoch {epoch}: "
@@ -276,7 +276,11 @@ def main(hyperparams):
     # save the model to .pth file
     output_dir = project_path / 'outputs' / hyperparams["output_dir"]
     if hyperparams["save_model"]:
-        torch.save(server.model.params, 
+        saved_params = {
+            'W': server.model.params['W'],
+            'b': server.model.params['b'],
+        }
+        torch.save(saved_params,
                    output_dir / 'trained_server.pth')
 
 
