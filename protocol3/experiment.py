@@ -3,7 +3,7 @@ import torch
 import tenseal as ts
 import sys
 
-BATCH_SIZE = 4
+BATCH_SIZE = 16
 
 he_context = {
     "P": 8192,  # polynomial_modulus_degree
@@ -25,7 +25,7 @@ print(f'b: {type(b)}, {b.shape}')
 print()
 
 enc_Wt = ts.CKKSTensor(context=context, tensor=Wt, batch=True)
-enc_Wt = enc_Wt.reshape([1, enc_Wt.shape[0]])
+# enc_Wt = enc_Wt.reshape([1, enc_Wt.shape[0]])
 print(f'enc_Wt (with batching): {type(enc_Wt)}, {enc_Wt.shape}')
 print(f'size of serialized enc_Wt using batching: {sys.getsizeof(enc_Wt.serialize()) / 10**6} Mb')
 
@@ -37,7 +37,7 @@ print()
 a_t = torch.randn([BATCH_SIZE, 256]).T  # 4 is the batch size
 print(f'a_t: {type(a_t)}, {a_t.shape}')
 enc_a_t = ts.CKKSTensor(context=context, tensor=a_t, batch=True)
-enc_a_t = enc_a_t.reshape([1, enc_a_t.shape[0]])
+# enc_a_t = enc_a_t.reshape([1, enc_a_t.shape[0]])
 print(f'enc_a_t: {type(enc_a_t)}, {enc_a_t.shape}')
 print(f'size of serialized enc_a_t: {sys.getsizeof(enc_a_t.serialize()) / 10**6} Mb')
 print()
