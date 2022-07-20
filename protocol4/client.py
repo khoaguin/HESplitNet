@@ -234,32 +234,35 @@ class Client:
 
         train_losses = list()
         train_accs = list()
-        # test_losses = list()
-        # test_accs = list()
-        # best_test_acc = 0  # best test accuracy
+        train_comms = list()
+        train_times = list()
+
         loss_func = nn.CrossEntropyLoss()
         optimizer = Adam(self.ecg_model.parameters(), lr=lr)
         for e in range(epoch):
             print(f"---- Epoch {e+1} ----")
             start = time.time()
-            e_train_loss, e_correct, e_samples = \
+            e_train_loss, e_correct, e_samples, e_comm = \
                 self.training_loop(verbose, loss_func, optimizer, batch_encrypted)
             end = time.time()
             train_losses.append(e_train_loss / total_batch)
             train_accs.append(e_correct / e_samples)
+            train_times.append(end-start)
+            train_comms.append(e_comm)
             train_status = f"training loss: {train_losses[-1]:.4f}, "\
                            f"training acc: {train_accs[-1]*100:.2f}, "\
-                           f"training time: {end-start:.2f}s"
+                           f"training time: {end-start:.2f}s, "\
+                           f"training communication: {e_comm} Mb"
             print(train_status)
-            _ = send_msg(sock=self.socket, msg=pickle.dumps(train_status))
+            send_msg(sock=self.socket, msg=pickle.dumps(train_status))
 
-        return train_losses, train_accs
+        return train_losses, train_accs, train_times, train_comms
 
     def training_loop(self, 
                     verbose: bool, 
                     loss_func, 
                     optimizer, 
-                    batch_encrypted: bool) -> None:
+                    batch_encrypted: bool):
         """The server's training function for each epoch
 
         Args:
@@ -274,6 +277,7 @@ class Client:
         epoch_train_loss = 0.0
         epoch_correct = 0
         epoch_total_samples = 0
+        epoch_communication = 0
         for i, batch in enumerate(self.train_loader):
             if verbose: print(f"Batch {i+1}\nForward Pass ---")
             start = time.time()
@@ -283,11 +287,11 @@ class Client:
             a = self.ecg_model.forward(x)
             enc_a, enc_a_t = self.ecg_model.encrypt(a, batch_encrypted)
             if verbose: print(f"\U0001F601 Sending enc_a of shape {enc_a.shape} to the server")
-            send_msg(sock=self.socket, msg=enc_a.serialize())
+            send_size1 = send_msg(sock=self.socket, msg=enc_a.serialize())
             if verbose: print(f"\U0001F601 Sending enc_a_t of shape {enc_a_t.shape} to the server")
-            send_msg(sock=self.socket, msg=enc_a_t.serialize())
+            send_size2 = send_msg(sock=self.socket, msg=enc_a_t.serialize())
 
-            enc_a2, _ = recv_msg(sock=self.socket)
+            enc_a2, recv_size1 = recv_msg(sock=self.socket)
             enc_a2 = CKKSTensor.load(context=self.context,
                                      data=enc_a2)
             if verbose: print(f"\U0001F601 Received he_a2 of shape {enc_a2.shape} from the server")
@@ -306,10 +310,10 @@ class Client:
             if verbose: print("Backward Pass ---")
             batch_loss.backward()
             dJda2: Tensor = a2.grad.clone().detach().to('cpu')
-            send_msg(sock=self.socket, msg=pickle.dumps(dJda2))
+            send_size3 = send_msg(sock=self.socket, msg=pickle.dumps(dJda2))
             if verbose: print(f"\U0001F601 Sending dJda2 of shape {dJda2.shape} to the server")
             
-            dJda, _ = recv_msg(sock=self.socket)
+            dJda, recv_size2 = recv_msg(sock=self.socket)
             dJda = pickle.loads(dJda)
             if verbose: print(f"\U0001F601 Received dJda of shape {dJda.shape} from the server")
             dJda = dJda.to(self.device)
@@ -318,18 +322,24 @@ class Client:
             a.backward(dJda)  # calculating the gradients w.r.t the conv layers
             optimizer.step()  # updating the parameters
 
-            server_Wt, _ = recv_msg(sock=self.socket)
+            server_Wt, recv_size3 = recv_msg(sock=self.socket)
             server_Wt = CKKSTensor.load(context=self.context, data=server_Wt)
             if verbose: print(f"\U0001F601 Received encrypted W of shape {server_Wt.shape} from the server")
             server_Wt = torch.tensor(server_Wt.decrypt().tolist()).squeeze()
-            send_msg(sock=self.socket, msg=pickle.dumps(server_Wt))
+            send_size4 = send_msg(sock=self.socket, msg=pickle.dumps(server_Wt))
             if verbose: print(f"\U0001F601 Send decrypted W of shape {server_Wt.shape} to the server")
             
             end = time.time()
             if verbose: print(f'Batch {i+1} loss: {batch_loss:.4f}')
             if verbose: print(f"Training time for batch {i+1}: {end-start:.2f}s\n")
 
-        return epoch_train_loss, epoch_correct, epoch_total_samples
+            # calculate communication overhead
+            communication = recv_size1 + recv_size2 + recv_size3 +\
+                 send_size1 + send_size2 + send_size3 + send_size4
+            if verbose: print(f"Communication for batch {i+1}: {communication} (Mb)\n")
+            epoch_communication += communication
+
+        return epoch_train_loss, epoch_correct, epoch_total_samples, epoch_communication
 
 
 def main():
@@ -373,15 +383,17 @@ def main():
                             batch_size=hyperparams["batch_size"])
     # build the model and start training
     client.build_model(project_path/'weights/init_weight.pth')
-    train_losses, train_accs = client.train(hyperparams)
+    train_losses, train_accs, train_times, train_comms = client.train(hyperparams)
 
     # after the training is done, save the results and the trained models
     if hyperparams["save_model"]:    
         df = pd.DataFrame({  # save model training process into csv file
             'train_losses': train_losses,
             'train_accs': train_accs,
+            'train_times (s)': train_times,
+            'train_comms (Mb)': train_comms
         })
-        df.to_csv(output_dir / 'loss_and_acc.csv')
+        df.to_csv(output_dir / 'train_results.csv')
         torch.save(client.ecg_model.state_dict(), 
                    output_dir / 'trained_client.pth')
 
