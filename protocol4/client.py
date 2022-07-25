@@ -252,7 +252,7 @@ class Client:
             train_status = f"training loss: {train_losses[-1]:.4f}, "\
                            f"training acc: {train_accs[-1]*100:.2f}, "\
                            f"training time: {end-start:.2f}s, "\
-                           f"training communication: {e_comm} Mb"
+                           f"training communication: {e_comm:.2f} Mb"
             print(train_status)
             send_msg(sock=self.socket, msg=pickle.dumps(train_status))
 
@@ -336,7 +336,7 @@ class Client:
             # calculate communication overhead
             communication = recv_size1 + recv_size2 + recv_size3 +\
                  send_size1 + send_size2 + send_size3 + send_size4
-            if verbose: print(f"Communication for batch {i+1}: {communication} (Mb)\n")
+            if verbose: print(f"Communication for batch {i+1}: {communication:.2f} (Mb)\n")
             epoch_communication += communication
 
         return epoch_train_loss, epoch_correct, epoch_total_samples, epoch_communication
@@ -345,23 +345,22 @@ class Client:
 def main():
     # establish the connection with the server
     client = Client()
-    client.init_socket(host='localhost', port=10080)
+    client.init_socket(host='localhost', port=1024)
     
     # receive the hyperparameters from the server
     hyperparams, _ = recv_msg(sock=client.socket)
     hyperparams = pickle.loads(hyperparams)
-    if hyperparams["verbose"]:
-        print("\U0001F601 Received the hyperparameters from the Server")
-        print(hyperparams)
+    # print("\U0001F601 Received the hyperparameters from the Server")
+    print(f'hyperparams: {hyperparams}')
 
     # construct the tenseal context to encrypt data homomorphically
     # he_context: Dict = {
     #     "P": 8192,  # polynomial_modulus_degree
-    #     "C": [40, 21, 21, 21, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
+    #     "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
     #     "Delta": pow(2, 21)  # the global scaling factor
     # }
     he_context: Dict = {
-        "P": 8192,  # polynomial_modulus_degree
+        "P": 16384,  # polynomial_modulus_degree
         "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
         "Delta": pow(2, 21)  # the global scaling factor
     }
@@ -373,9 +372,8 @@ def main():
 
     send_sk = True if hyperparams["debugging"] else False 
     client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)
-    if hyperparams["verbose"]:
-        print(f"HE Context: {he_context}")
-        print(f"\U0001F601 Sending the context to the server. Sending the secret key: {send_sk}")
+    print(f"HE Context: {he_context}")
+    # print(f"\U0001F601 Sending the context to the server. Sending the secret key: {send_sk}")
     
     # load the dataset
     client.load_ecg_dataset(train_name=project_path/"data/train_ecg.hdf5",

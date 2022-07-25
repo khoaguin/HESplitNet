@@ -199,7 +199,6 @@ class Server:
             epoch (int): _description_
             batch_size (int): _description_
         """
-        epoch_communication = 0
         for i in range(total_batch):
             if verbose: print(f"Batch {i+1}")
             self.model.clear_grad_and_cache()
@@ -224,7 +223,7 @@ class Server:
             dJda2, recv_size3 = recv_msg(sock=self.connection)
             dJda2: Tensor = pickle.loads(dJda2)
             if verbose: print(f"\U0001F601 Received dJda2 of shape {dJda2.shape} "
-                              f"and size {recv_size2} Mb from the client")
+                              f"and size {recv_size3} Mb from the client")
 
             dJda: Tensor = self.model.backward(dJda2, enc_a_t)
             send_size2 = send_msg(sock=self.connection, msg=pickle.dumps(dJda))
@@ -245,20 +244,11 @@ class Server:
                               f"and size {recv_size4} Mb from the client")
             self.model.set_weights(Wt.T)
 
-            # calculate communication overhead
-            communication = recv_size1 + recv_size2 + recv_size3 + recv_size4 +\
-                 send_size1 + send_size2 + send_size3
-            if verbose: print(f"Communication for batch {i+1}/{total_batch}: {communication} (Mb)\n")
-            epoch_communication += communication
-
-        print(f"Communication for epoch {epoch}: "
-              f"{epoch_communication:.4f} (Mb)")
-
 
 def main(hyperparams):
     # establish the connection with the client, send the hyperparameters
     server = Server()
-    server.init_socket(host='localhost', port=10080)
+    server.init_socket(host='localhost', port=1024)
     if hyperparams["verbose"]:
         print(f"Hyperparams: {hyperparams}")
         print("\U0001F601 Sending the hyperparameters to the Client")
@@ -287,7 +277,7 @@ def main(hyperparams):
 if __name__ == "__main__":
     hyperparams = {
         'verbose': False,
-        'batch_size': 4,
+        'batch_size': 8,
         # 'total_batch': math.ceil(13245/2),
         'epoch': 10,
         'lr': 0.001,
@@ -295,6 +285,6 @@ if __name__ == "__main__":
         'batch_encrypted': True,
         'save_model': True,
         'debugging': False,
-        'output_dir': 'Jul_20_8192_batch4'
+        'output_dir': 'July_21_16384_batch4'
     }
     main(hyperparams)
