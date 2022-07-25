@@ -285,6 +285,6 @@ if __name__ == "__main__":
         'batch_encrypted': True,
         'save_model': True,
         'debugging': False,
-        'output_dir': 'July_21_16384_batch4'
+        'output_dir': 'July_21_16384_batch8'
     }
     main(hyperparams)
