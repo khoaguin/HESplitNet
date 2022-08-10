@@ -1,5 +1,5 @@
 # HESplit
-Privacy-preserving neural network training using split learning and homomorphic encryption (CKKS scheme).
+2-party Privacy-preserving Neural Network Training using Split Learning and Homomorphic Encryption (CKKS Scheme).
 
 ## Requirements
 `tenseal==0.3.10`  
