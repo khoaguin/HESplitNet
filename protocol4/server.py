@@ -248,7 +248,7 @@ class Server:
 def main(hyperparams):
     # establish the connection with the client, send the hyperparameters
     server = Server()
-    server.init_socket(host='localhost', port=1024)
+    server.init_socket(host='localhost', port=1025)
     if hyperparams["verbose"]:
         print(f"Hyperparams: {hyperparams}")
         print("\U0001F601 Sending the hyperparameters to the Client")
@@ -274,6 +274,9 @@ def main(hyperparams):
                    output_dir / 'trained_server.pth')
 
 
+# TODO: now we have to change the port (when running multiple scripts),
+# the hyperparameters, and the HE parameters. Put these into a config file
+# (using hydra)
 if __name__ == "__main__":
     hyperparams = {
         'verbose': False,
@@ -285,6 +288,6 @@ if __name__ == "__main__":
         'batch_encrypted': True,
         'save_model': True,
         'debugging': False,
-        'output_dir': 'July_21_16384_batch8'
+        'output_dir': 'July_27_16384_batch8'
     }
     main(hyperparams)

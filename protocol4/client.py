@@ -345,7 +345,7 @@ class Client:
 def main():
     # establish the connection with the server
     client = Client()
-    client.init_socket(host='localhost', port=1024)
+    client.init_socket(host='localhost', port=1025)
     
     # receive the hyperparameters from the server
     hyperparams, _ = recv_msg(sock=client.socket)
