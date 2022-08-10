@@ -1,0 +1,10 @@
+'port': 1024,
+'verbose': False,
+'batch_size': 8,
+'epoch': 10,
+'lr': 0.001,
+'seed': 0,
+'batch_encrypted': True,
+'save_model': True,
+'debugging': False,
+'output_dir': 'July_27_16384_batch8'

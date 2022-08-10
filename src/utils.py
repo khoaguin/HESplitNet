@@ -2,14 +2,40 @@
 Socket functions to transfer data
 """
 
-import pickle
-import socket
 import struct
 from pathlib import Path
-import datetime
 from typing import Dict
 import json
 import sys
+
+import torch
+from torch.utils.data import Dataset
+
+import h5py
+
+
+class ECGDataset(Dataset):
+    """The class used by the client to load the dataset
+
+    Args:
+        Dataset: the Dataset class from torch
+    """
+    def __init__(self, train_name, test_name, train=True):
+        if train:
+            with h5py.File(train_name, 'r') as hdf:
+                self.x = hdf['x_train'][:]
+                self.y = hdf['y_train'][:]
+        else:
+            with h5py.File(test_name, 'r') as hdf:
+                self.x = hdf['x_test'][:]
+                self.y = hdf['y_test'][:]
+    
+    def __len__(self):
+        return len(self.x)
+    
+    def __getitem__(self, idx):
+        return torch.tensor(self.x[idx], dtype=torch.float), \
+               torch.tensor(self.y[idx])
 
 
 def send_msg(sock, msg):
@@ -47,25 +73,6 @@ def recvall(sock, n):
             return None
         data += packet
     return data 
-
-# def get_output_dir(prefix: Path):
-#     """Get the output dir based on date time
-
-#     Args:
-#         prefix (Path): _description_
-
-#     Returns:
-#         _type_: _description_
-#     """
-#     today = datetime.datetime.now()
-#     year = today.strftime("%Y")
-#     month = today.strftime("%m")
-#     day = today.strftime("%d")
-#     hour = today.strftime("%H")
-#     output = "outputs/" + year +"_" + month + "_" + day + "_" + hour
-#     output_dir = prefix / output
-    
-#     return output_dir
 
 def write_params(file_path: Path, 
             he_params: Dict, 

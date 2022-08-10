@@ -2,29 +2,30 @@ import math
 import pickle
 import socket
 from pathlib import Path
-from typing import Tuple, Union, List
-import sys
+from typing import Union
 
-from matplotlib.style import context
-
-from utils import send_msg, recv_msg
-
+import hydra
+from omegaconf import DictConfig, OmegaConf
 import numpy as np
 import tenseal as ts
 import torch
 from torch import Tensor
-from icecream import ic
-ic.configureOutput(includeContext=True)
 from tenseal.enc_context import Context
 from tenseal.tensors.ckkstensor import CKKSTensor
+
+from utils import send_msg, recv_msg
+
+
+project_path = Path(__file__).parents[1].absolute()
+print(f'project path: {project_path}')
 print(f'tenseal version: {ts.__version__}')
 print(f'torch version: {torch.__version__}')
 
-project_path = Path(__file__).parents[0].absolute()
-print(f'project path: {project_path}')
 
-
-class ECGServer256:
+class ServerCNN256:
+    """The 1D CNN model on the server side that has output activation map
+    of 256 time steps
+    """
 
     def __init__(self, init_weight_path: Union[str, Path]):
         checkpoint = torch.load(init_weight_path)
@@ -36,6 +37,11 @@ class ECGServer256:
         self.cache = dict()
     
     def set_weights(self, W):
+        """Set the weights of the model
+
+        Args:
+            W (_type_): _description_
+        """
         assert self.params['W'].shape == W.shape, "shapes do not match"
         self.params['W'] = W
 
@@ -121,6 +127,7 @@ class ECGServer256:
         
         return self.params['enc_Wt']
 
+
 class Server:
     def __init__(self) -> None:
         self.socket = None
@@ -155,7 +162,7 @@ class Server:
                     init_weight_path: Union[str, Path]) -> None:
         """Build the neural network model for the server
         """
-        self.model = ECGServer256(init_weight_path)
+        self.model = ServerCNN256(init_weight_path)
 
     def train(self, hyperparams: dict):
         seed = hyperparams["seed"]
@@ -245,49 +252,56 @@ class Server:
             self.model.set_weights(Wt.T)
 
 
-def main(hyperparams):
-    # establish the connection with the client, send the hyperparameters
-    server = Server()
-    server.init_socket(host='localhost', port=1025)
-    if hyperparams["verbose"]:
-        print(f"Hyperparams: {hyperparams}")
-        print("\U0001F601 Sending the hyperparameters to the Client")
-    send_msg(sock=server.connection, msg=pickle.dumps(hyperparams))
+# @hydra.main(version_base=None, config_path="conf", config_name="config")
+# def main(hyperparams):
+#     # establish the connection with the client, send the hyperparameters
+#     server = Server()
+#     server.init_socket(host='localhost', port=1025)
+#     if hyperparams["verbose"]:
+#         print(f"Hyperparams: {hyperparams}")
+#         print("\U0001F601 Sending the hyperparameters to the Client")
+#     send_msg(sock=server.connection, msg=pickle.dumps(hyperparams))
 
-    # receive the tenseal context from the client
-    server.recv_ctx()
-    if hyperparams["verbose"]:
-        print("\U0001F601 Received the TenSeal context from the Client")
+#     # receive the tenseal context from the client
+#     server.recv_ctx()
+#     if hyperparams["verbose"]:
+#         print("\U0001F601 Received the TenSeal context from the Client")
 
-    # # build and train the model
-    server.build_model(project_path/'weights/init_weight.pth')
-    server.train(hyperparams)
+#     # # build and train the model
+#     server.build_model(project_path/'weights/init_weight.pth')
+#     server.train(hyperparams)
 
-    # save the model to .pth file
-    output_dir = project_path / 'outputs' / hyperparams["output_dir"]
-    if hyperparams["save_model"]:
-        saved_params = {
-            'W': server.model.params['W'],
-            'b': server.model.params['b'],
-        }
-        torch.save(saved_params,
-                   output_dir / 'trained_server.pth')
+#     # save the model to .pth file
+#     output_dir = project_path / 'outputs' / hyperparams["output_dir"]
+#     if hyperparams["save_model"]:
+#         saved_params = {
+#             'W': server.model.params['W'],
+#             'b': server.model.params['b'],
+#         }
+#         torch.save(saved_params,
+#                    output_dir / 'trained_server.pth')
 
+@hydra.main(version_base=None, config_path=project_path/"conf", config_name="config")
+def main(cfg : DictConfig) -> None:
+    # print(cfg['verbose'])
+    print(OmegaConf.to_yaml(cfg))
+    
 
 # TODO: now we have to change the port (when running multiple scripts),
 # the hyperparameters, and the HE parameters. Put these into a config file
 # (using hydra)
 if __name__ == "__main__":
-    hyperparams = {
-        'verbose': False,
-        'batch_size': 8,
-        # 'total_batch': math.ceil(13245/2),
-        'epoch': 10,
-        'lr': 0.001,
-        'seed': 0,
-        'batch_encrypted': True,
-        'save_model': True,
-        'debugging': False,
-        'output_dir': 'July_27_16384_batch8'
-    }
-    main(hyperparams)
+    # hyperparams = {
+    #     'verbose': False,
+    #     'batch_size': 8,
+    #     # 'total_batch': math.ceil(13245/2),
+    #     'epoch': 10,
+    #     'lr': 0.001,
+    #     'seed': 0,
+    #     'batch_encrypted': True,
+    #     'save_model': True,
+    #     'debugging': False,
+    #     'output_dir': 'July_27_16384_batch8'
+    # }
+    # main(hyperparams)
+    main()

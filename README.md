@@ -6,6 +6,7 @@
 `pytorch==1.10.0+cu102`  
 `icecream==2.1.2`  
 `h5py==3.7.0`  
+`hydra-core==1.1.1`  
 
 ## Protocol Explanation
 ![protocol](./images/protocol.png)

@@ -2,64 +2,32 @@ import pickle
 import socket
 import time
 from pathlib import Path
-from typing import Union, Tuple, Dict
-import json
 import math
-import sys
+from typing import Union, Tuple, Dict
 
-from nbformat import write
-
-from utils import write_params, send_msg, recv_msg
-
-import h5py
 import numpy as np
 import pandas as pd
 import tenseal as ts
+
 import torch
-from torch.autograd import grad
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import grad
 from torch import Tensor
-from icecream import ic
+from torch.utils.data import DataLoader
+from torch.optim import Adam
 
-ic.configureOutput(includeContext=True)
 from tenseal.enc_context import Context
 from tenseal.tensors.ckkstensor import CKKSTensor
-from tenseal.tensors.ckksvector import CKKSVector
-from tenseal.tensors.plaintensor import PlainTensor
-from torch.optim import SGD, Adam
-from torch.utils.data import DataLoader, Dataset
 
-project_path = Path(__file__).parents[0].absolute()
+from utils import write_params, send_msg, recv_msg, ECGDataset
+
+project_path = Path(__file__).parents[1].absolute()
 print(f'project dir: {project_path}')
 
 
-class ECG(Dataset):
-    """The class used by the client to load the dataset
-
-    Args:
-        Dataset ([type]): [description]
-    """
-    def __init__(self, train_name, test_name, train=True):
-        if train:
-            with h5py.File(train_name, 'r') as hdf:
-                self.x = hdf['x_train'][:]
-                self.y = hdf['y_train'][:]
-        else:
-            with h5py.File(test_name, 'r') as hdf:
-                self.x = hdf['x_test'][:]
-                self.y = hdf['y_test'][:]
-    
-    def __len__(self):
-        return len(self.x)
-    
-    def __getitem__(self, idx):
-        return torch.tensor(self.x[idx], dtype=torch.float), \
-               torch.tensor(self.y[idx])
-
-
-class EcgClient256(nn.Module):
-    """The client's 1D CNN model
+class ClientCNN256(nn.Module):
+    """The client's 1D CNN model with activation map size of 256 time steps
 
     Args:
         nn ([torch.Module]): [description]
@@ -67,7 +35,7 @@ class EcgClient256(nn.Module):
     def __init__(self, 
                  context: Context, 
                  init_weight_path: Union[str, Path]):
-        super(EcgClient256, self).__init__()
+        super(ClientCNN256, self).__init__()
         self.conv1 = nn.Conv1d(in_channels=1, 
                                out_channels=16, 
                                kernel_size=7, 
@@ -164,8 +132,8 @@ class Client:
             test_name (str): [description]
             batch_size (int): [description]
         """
-        train_dataset = ECG(train_name, test_name, train=True)
-        test_dataset = ECG(train_name, test_name, train=False)
+        train_dataset = ECGDataset(train_name, test_name, train=True)
+        test_dataset = ECGDataset(train_name, test_name, train=False)
         self.train_loader = DataLoader(train_dataset, batch_size=batch_size)
         self.test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
@@ -213,7 +181,7 @@ class Client:
         else:
             self.device = torch.device('cpu') 
             print(f'Client device: {self.device}')
-        self.ecg_model = EcgClient256(context=self.context, 
+        self.ecg_model = ClientCNN256(context=self.context, 
                                       init_weight_path=init_weight_path)
         self.ecg_model.to(self.device)
 
@@ -397,4 +365,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    print('client')
