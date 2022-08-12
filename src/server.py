@@ -3,6 +3,7 @@ import pickle
 import socket
 from pathlib import Path
 from typing import Union
+import logging
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -15,117 +16,8 @@ from tenseal.tensors.ckkstensor import CKKSTensor
 
 from utils import send_msg, recv_msg
 
-
+log = logging.getLogger(__name__)  # A logger for this file
 project_path = Path(__file__).parents[1].absolute()
-print(f'project path: {project_path}')
-print(f'tenseal version: {ts.__version__}')
-print(f'torch version: {torch.__version__}')
-
-
-class ServerCNN256:
-    """The 1D CNN model on the server side that has output activation map
-    of 256 time steps
-    """
-
-    def __init__(self, init_weight_path: Union[str, Path]):
-        checkpoint = torch.load(init_weight_path)
-        self.params = dict(
-            W = checkpoint["linear.weight"],  # [5, 256] ([output dimension, hidden dimension])
-            b = checkpoint["linear.bias"]  # [5]
-        )
-        self.grads = dict()
-        self.cache = dict()
-    
-    def set_weights(self, W):
-        """Set the weights of the model
-
-        Args:
-            W (_type_): _description_
-        """
-        assert self.params['W'].shape == W.shape, "shapes do not match"
-        self.params['W'] = W
-
-    def forward(self, 
-                enc_a: CKKSTensor) -> CKKSTensor:
-        """The server's forward pass on encrypted data 
-        Currently only have one linear layer
-
-        Args:
-            enc_a (CKKSTensor): the encrypted activation maps from the client
-
-        Returns:
-            CKKSTensor: the encrypted outputs
-        """
-        W, b = self.params['W'], self.params['b']
-        enc_a2: CKKSTensor = enc_a.mm(W.T) + b
-        self.cache["da2da"] = W  # save this for backward pass
-
-        return enc_a2
-
-    def backward(self, 
-                 dJda2: Tensor,
-                 enc_a_t: CKKSTensor) -> CKKSTensor:
-        """Calculate the gradients of the loss function w.r.t the bias
-           and the weights of the server's linear layer
-           Also calculate the gradients of the loss function w.r.t the 
-           client's activation map (dJda)     
-
-        Args:
-            dJda2 (Tensor): the derivative of the loss function w.r.t the output
-                            of the linear layer. shape: [batch_size, 5]
-            enc_a (CKKSTensor): the encrypted transpose activation map received 
-                            from the client. shape: [1, batch_size]
-                               
-        Returns:
-            dJda (CKKSTensor): the derivative of the loss function w.r.t the
-                          activation map received from the client. 
-                          This will be sent to the client so he can calculate
-                          the gradients w.r.t the conv layers weights.
-        """
-        # calculate dJdb (b: the server's bias)
-        self.grads["dJdb"] = dJda2.sum(0)  # sum accross all samples in a batch
-        assert self.grads["dJdb"].shape == self.params["b"].shape, \
-            "dJdb and b must have the same shape"
-
-        # calculate the encrypted dJ/dWt (Wt: the server's weights transposed)
-        enc_dJdWt = enc_a_t.mm(dJda2)
-        self.grads['enc_dJdWt'] = enc_dJdWt
-
-        # calculate dJda to send to the client
-        # we have: dJ/da = dJ/da2 * da2/da
-        #                = dJ/da2 * W
-        dJda: Tensor = dJda2.matmul(self.cache['da2da'])
- 
-        return dJda
-
-    def clear_grad_and_cache(self):
-        """Clear the cache dictionary and make all grads zeros for the 
-           next forward pass on a new batch
-        """
-        self.grads = dict()
-        self.cache = dict()
-
-    def encrypt_weights(self, context, batch_enc):
-        """Encrypt the weights
-
-        Args:
-            context (_type_): _description_
-            batch_encrypted (_type_): _description_
-        """
-        W = self.params['W']
-        enc_Wt = ts.CKKSTensor(context, W.T, batch=batch_enc)
-        enc_Wt.reshape_([1, enc_Wt.shape[0]])
-        self.params['enc_Wt'] = enc_Wt
-
-    def update_params(self, lr: float):
-        """
-        Update the parameters based on the gradients calculated in backward()
-        Return the encrypted weights
-        """
-        self.params['enc_Wt'] = self.params['enc_Wt'] - lr * self.grads["enc_dJdWt"]
-        self.params["b"] = self.params["b"] - lr * self.grads["dJdb"]
-        
-        return self.params['enc_Wt']
 
 
 class Server:
@@ -147,9 +39,7 @@ class Server:
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((host, port))  # associates the socket with its local address
         self.socket.listen()
-        print('Listening on', (host, port))
         self.connection, addr = self.socket.accept()  # wait for the client to connect
-        print(f'Connection: {self.connection} \nAddress: {addr}')
 
     def recv_ctx(self):
         """Receive the context (in bytes) from the client 
@@ -281,15 +171,25 @@ class Server:
 #         torch.save(saved_params,
 #                    output_dir / 'trained_server.pth')
 
+
 @hydra.main(version_base=None, config_path=project_path/"conf", config_name="config")
 def main(cfg : DictConfig) -> None:
-    # print(cfg['verbose'])
-    print(OmegaConf.to_yaml(cfg))
-    
+    log.info(f'project path: {project_path}')
+    log.info(f'tenseal version: {ts.__version__}')
+    log.info(f'torch version: {torch.__version__}')
+    log.info(f'hyperparameters: \n{OmegaConf.to_yaml(cfg)}')
+    # establish the connection with the client, send the hyperparameters
+    server = Server()
+    server.init_socket(host='localhost', port=int(cfg['port']))
+    log.info('connected to the client')
+    # the TenSeal HE context
+    server.recv_ctx()
+    log.info("\U0001F601 Received the TenSeal context from the Client")
+    # build and train the model
+    server.build_model(project_path/'weights/init_weight.pth')
+    # server.train(cfg)
 
-# TODO: now we have to change the port (when running multiple scripts),
-# the hyperparameters, and the HE parameters. Put these into a config file
-# (using hydra)
+
 if __name__ == "__main__":
     # hyperparams = {
     #     'verbose': False,

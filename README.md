@@ -13,5 +13,19 @@
 
 ## Code
 ### Structure
+```
+├── conf              # hold the config file
+│   ├── config.yaml 
+├── data  
+├── images 
+├── notebooks 
+├── outputs
+├── src  
+|   ├── client.py
+|   ├── server.py
+└── weights
+ ```
 
 ### Running
+Go into the directory, then run `python src/server.py` and `python src/client.py`.  
+The outputs will be in the directory `outputs/<year_month_day>/<output_dir>` where `output_dir` is defined in `conf/config.yaml`.

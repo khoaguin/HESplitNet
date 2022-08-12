@@ -3,11 +3,13 @@ import socket
 import time
 from pathlib import Path
 import math
+import logging
 from typing import Union, Tuple, Dict
 
 import numpy as np
 import pandas as pd
-import tenseal as ts
+import hydra
+from omegaconf import DictConfig, OmegaConf
 
 import torch
 import torch.nn as nn
@@ -17,84 +19,15 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 
+import tenseal as ts
 from tenseal.enc_context import Context
 from tenseal.tensors.ckkstensor import CKKSTensor
 
 from utils import write_params, send_msg, recv_msg, ECGDataset
 
+
+log = logging.getLogger(__name__)
 project_path = Path(__file__).parents[1].absolute()
-print(f'project dir: {project_path}')
-
-
-class ClientCNN256(nn.Module):
-    """The client's 1D CNN model with activation map size of 256 time steps
-
-    Args:
-        nn ([torch.Module]): [description]
-    """
-    def __init__(self, 
-                 context: Context, 
-                 init_weight_path: Union[str, Path]):
-        super(ClientCNN256, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=1, 
-                               out_channels=16, 
-                               kernel_size=7, 
-                               padding=3,
-                               stride=1)  # 128 x 16
-        self.relu1 = nn.LeakyReLU()
-        self.pool1 = nn.MaxPool1d(2)  # 64 x 16
-        self.conv2 = nn.Conv1d(in_channels=16, 
-                               out_channels=8, 
-                               kernel_size=5, 
-                               padding=2)  # 64 x 8
-        self.relu2 = nn.LeakyReLU()
-        self.pool2 = nn.MaxPool1d(2)  # 32 x 8 = 256
-        
-        self.load_init_weights(init_weight_path)
-        self.context = context
-
-    def load_init_weights(self, init_weight_path: Union[str, Path]):
-        checkpoint = torch.load(init_weight_path)
-        self.conv1.weight.data = checkpoint["conv1.weight"]
-        self.conv1.bias.data = checkpoint["conv1.bias"]
-        self.conv2.weight.data = checkpoint["conv2.weight"]
-        self.conv2.bias.data = checkpoint["conv2.bias"]
-
-    def forward(self, x: Tensor) -> Tensor:
-        x = self.conv1(x)  
-        x = self.relu1(x)
-        x = self.pool1(x)  
-        x = self.conv2(x) 
-        x = self.relu2(x)
-        x = self.pool2(x)
-        x = x.view(-1, 256)  # [batch_size, 256]
-        
-        return x
-
-    def encrypt(self, a: Tensor, batch_enc: bool) \
-                -> Tuple[CKKSTensor, CKKSTensor]:
-        """_summary_
-
-        Args:
-            a (Tensor): The plaintext activation maps
-                from the forward function
-            batch_enc (bool): if true, encrypt using batching 
-
-        Returns:
-            enc_a (CKKSTensor): the encrypted activation maps
-            enc_a_t (CKKSTensor): the encrypted transpose activation maps
-        """
-        enc_a: CKKSTensor = ts.CKKSTensor(self.context, 
-                        a.tolist(),
-                        batch=batch_enc)
-        enc_a.reshape_([1, enc_a.shape[0]])
-
-        enc_a_t: CKKSTensor = ts.CKKSTensor(self.context,
-                        a.T.tolist(),
-                        batch=batch_enc)
-        enc_a_t.reshape_([1, enc_a_t.shape[0]])
-
-        return enc_a, enc_a_t
 
 
 class Client:
@@ -119,21 +52,20 @@ class Client:
         """
         self.socket = socket.socket()
         self.socket.connect((host, port))  # connect to a remote [server] address,
-        print(self.socket)
     
     def load_ecg_dataset(self, 
-                         train_name: str, 
-                         test_name: str,
+                         train_path: str, 
+                         test_path: str,
                          batch_size: int) -> None:
         """[summary]
 
         Args:
-            train_name (str): [description]
-            test_name (str): [description]
+            train_path (str): [description]
+            test_path (str): [description]
             batch_size (int): [description]
         """
-        train_dataset = ECGDataset(train_name, test_name, train=True)
-        test_dataset = ECGDataset(train_name, test_name, train=False)
+        train_dataset = ECGDataset(train_path, test_path, train=True)
+        test_dataset = ECGDataset(train_path, test_path, train=False)
         self.train_loader = DataLoader(train_dataset, batch_size=batch_size)
         self.test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
@@ -151,7 +83,7 @@ class Client:
         """
         self.context = ts.context(
             ts.SCHEME_TYPE.CKKS, 
-            poly_modulus_degree=he_context["P"], 
+            poly_modulus_degree=he_context["P"],
             coeff_mod_bit_sizes=he_context["C"]
         )
         self.context.global_scale = he_context["Delta"]
@@ -310,60 +242,86 @@ class Client:
         return epoch_train_loss, epoch_correct, epoch_total_samples, epoch_communication
 
 
-def main():
+# def main():
+#     # establish the connection with the server
+#     client = Client()
+#     client.init_socket(host='localhost', port=1025)
+    
+#     # receive the hyperparameters from the server
+#     hyperparams, _ = recv_msg(sock=client.socket)
+#     hyperparams = pickle.loads(hyperparams)
+#     # print("\U0001F601 Received the hyperparameters from the Server")
+#     print(f'hyperparams: {hyperparams}')
+
+#     # construct the tenseal context to encrypt data homomorphically
+#     # he_context: Dict = {
+#     #     "P": 8192,  # polynomial_modulus_degree
+#     #     "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
+#     #     "Delta": pow(2, 21)  # the global scaling factor
+#     # }
+#     he_context: Dict = {
+#         "P": 16384,  # polynomial_modulus_degree
+#         "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
+#         "Delta": pow(2, 21)  # the global scaling factor
+#     }
+#     output_dir = project_path / 'outputs' / hyperparams["output_dir"]
+#     output_dir.mkdir(parents=True, exist_ok=True)
+#     write_params(output_dir/'params.txt', he_context, hyperparams)
+
+#     client.make_tenseal_context(he_context)
+
+#     send_sk = True if hyperparams["debugging"] else False 
+#     client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)
+#     print(f"HE Context: {he_context}")
+#     # print(f"\U0001F601 Sending the context to the server. Sending the secret key: {send_sk}")
+    
+#     # load the dataset
+#     client.load_ecg_dataset(train_name=project_path/"data/train_ecg.hdf5",
+#                             test_name=project_path/"data/test_ecg.hdf5",
+#                             batch_size=hyperparams["batch_size"])
+#     # build the model and start training
+#     client.build_model(project_path/'weights/init_weight.pth')
+#     train_losses, train_accs, train_times, train_comms = client.train(hyperparams)
+
+#     # after the training is done, save the results and the trained models
+#     if hyperparams["save_model"]:    
+#         df = pd.DataFrame({  # save model training process into csv file
+#             'train_losses': train_losses,
+#             'train_accs': train_accs,
+#             'train_times (s)': train_times,
+#             'train_comms (Mb)': train_comms
+#         })
+#         df.to_csv(output_dir / 'train_results.csv')
+#         torch.save(client.ecg_model.state_dict(), 
+#                    output_dir / 'trained_client.pth')
+
+
+@hydra.main(version_base=None, config_path=project_path/"conf", config_name="config")
+def main(cfg : DictConfig) -> None:
+    log.info(f'project path: {project_path}')
+    log.info(f'tenseal version: {ts.__version__}')
+    log.info(f'torch version: {torch.__version__}')
+    log.info(f'hyperparameters: \n{OmegaConf.to_yaml(cfg)}')
     # establish the connection with the server
     client = Client()
-    client.init_socket(host='localhost', port=1025)
-    
-    # receive the hyperparameters from the server
-    hyperparams, _ = recv_msg(sock=client.socket)
-    hyperparams = pickle.loads(hyperparams)
-    # print("\U0001F601 Received the hyperparameters from the Server")
-    print(f'hyperparams: {hyperparams}')
-
-    # construct the tenseal context to encrypt data homomorphically
-    # he_context: Dict = {
-    #     "P": 8192,  # polynomial_modulus_degree
-    #     "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
-    #     "Delta": pow(2, 21)  # the global scaling factor
-    # }
-    he_context: Dict = {
-        "P": 16384,  # polynomial_modulus_degree
-        "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
-        "Delta": pow(2, 21)  # the global scaling factor
-    }
-    output_dir = project_path / 'outputs' / hyperparams["output_dir"]
-    output_dir.mkdir(parents=True, exist_ok=True)
-    write_params(output_dir/'params.txt', he_context, hyperparams)
-
-    client.make_tenseal_context(he_context)
-
-    send_sk = True if hyperparams["debugging"] else False 
+    client.init_socket(host='localhost', port=int(cfg['port']))
+    log.info('connected to the server')
+    # the TenSeal HE context
+    client.make_tenseal_context(he_context=cfg['he'])
+    send_sk = True if cfg['debugging'] else False 
     client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)
-    print(f"HE Context: {he_context}")
-    # print(f"\U0001F601 Sending the context to the server. Sending the secret key: {send_sk}")
-    
+    log.info(f"\U0001F601 Sending the context to the server. Sending the secret key: {send_sk}")
     # load the dataset
-    client.load_ecg_dataset(train_name=project_path/"data/train_ecg.hdf5",
-                            test_name=project_path/"data/test_ecg.hdf5",
-                            batch_size=hyperparams["batch_size"])
+    if cfg['dataset'] == 'MIT-BIH':
+        train_path = project_path/'data/mitbih_train.hdf5'
+        test_path = project_path/'data/mitbih_test.hdf5'
+    client.load_ecg_dataset(train_path=train_path,
+                            test_path=test_path,
+                            batch_size=cfg['batch_size'])
     # build the model and start training
     client.build_model(project_path/'weights/init_weight.pth')
-    train_losses, train_accs, train_times, train_comms = client.train(hyperparams)
-
-    # after the training is done, save the results and the trained models
-    if hyperparams["save_model"]:    
-        df = pd.DataFrame({  # save model training process into csv file
-            'train_losses': train_losses,
-            'train_accs': train_accs,
-            'train_times (s)': train_times,
-            'train_comms (Mb)': train_comms
-        })
-        df.to_csv(output_dir / 'train_results.csv')
-        torch.save(client.ecg_model.state_dict(), 
-                   output_dir / 'trained_client.pth')
 
 
 if __name__ == "__main__":
-    # main()
-    print('client')
+    main()
+    # print('client')
