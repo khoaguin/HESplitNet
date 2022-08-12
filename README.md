@@ -2,7 +2,7 @@
 2-party Privacy-preserving Neural Network Training using Split Learning and Homomorphic Encryption (CKKS Scheme).
 
 ## Requirements
-`python==3.9.7`
+`python==3.9.7`  
 `tenseal==0.3.10`  
 `pytorch==1.8.1+cu102`  
 `icecream==2.1.2`  
