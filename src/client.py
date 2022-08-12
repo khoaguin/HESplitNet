@@ -237,60 +237,6 @@ class Client:
         return epoch_train_loss, epoch_correct, epoch_total_samples, epoch_communication
 
 
-# def main():
-#     # establish the connection with the server
-#     client = Client()
-#     client.init_socket(host='localhost', port=1025)
-    
-#     # receive the hyperparameters from the server
-#     hyperparams, _ = recv_msg(sock=client.socket)
-#     hyperparams = pickle.loads(hyperparams)
-#     # print("📨 Received the hyperparameters from the Server")
-#     print(f'hyperparams: {hyperparams}')
-
-#     # construct the tenseal context to encrypt data homomorphically
-#     # he_context: Dict = {
-#     #     "P": 8192,  # polynomial_modulus_degree
-#     #     "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
-#     #     "Delta": pow(2, 21)  # the global scaling factor
-#     # }
-#     he_context: Dict = {
-#         "P": 16384,  # polynomial_modulus_degree
-#         "C": [40, 21, 21, 21, 40],  # coeff_modulo_bit_sizes
-#         "Delta": pow(2, 21)  # the global scaling factor
-#     }
-#     output_dir = project_path / 'outputs' / hyperparams["output_dir"]
-#     output_dir.mkdir(parents=True, exist_ok=True)
-#     write_params(output_dir/'params.txt', he_context, hyperparams)
-
-#     client.make_tenseal_context(he_context)
-
-#     send_sk = True if hyperparams["debugging"] else False 
-#     client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)
-#     print(f"HE Context: {he_context}")
-#     # print(f"📨 Sending the context to the server. Sending the secret key: {send_sk}")
-    
-#     # load the dataset
-#     client.load_ecg_dataset(train_name=project_path/"data/train_ecg.hdf5",
-#                             test_name=project_path/"data/test_ecg.hdf5",
-#                             batch_size=hyperparams["batch_size"])
-#     # build the model and start training
-#     client.build_model(project_path/'weights/init_weight.pth')
-#     train_losses, train_accs, train_times, train_comms = client.train(hyperparams)
-
-#     # after the training is done, save the results and the trained models
-#     if hyperparams["save_model"]:    
-#         df = pd.DataFrame({  # save model training process into csv file
-#             'train_losses': train_losses,
-#             'train_accs': train_accs,
-#             'train_times (s)': train_times,
-#             'train_comms (Mb)': train_comms
-#         })
-#         df.to_csv(output_dir / 'train_results.csv')
-#         torch.save(client.ecg_model.state_dict(), 
-#                    output_dir / 'trained_client.pth')
-
-
 @hydra.main(version_base=None, config_path=project_path/"conf", config_name="config")
 def main(cfg : DictConfig) -> None:
     log.info(f'project path: {project_path}')
