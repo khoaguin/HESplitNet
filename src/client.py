@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from hydra.core.hydra_config import HydraConfig
 
 import torch
 import torch.nn as nn
@@ -23,8 +24,8 @@ import tenseal as ts
 from tenseal.enc_context import Context
 from tenseal.tensors.ckkstensor import CKKSTensor
 
-from utils import write_params, send_msg, recv_msg, ECGDataset
-
+from utils import send_msg, recv_msg, ECGDataset, set_random_seed
+from models import ClientCNN256
 
 log = logging.getLogger(__name__)
 project_path = Path(__file__).parents[1].absolute()
@@ -109,41 +110,32 @@ class Client:
             raise TypeError("Tenseal Context is None")
         if torch.cuda.is_available():
             self.device = torch.device('cuda') 
-            print(f'Client device: {torch.cuda.get_device_name(0)}')
+            log.info(f'Client device: {torch.cuda.get_device_name(0)}')
         else:
             self.device = torch.device('cpu') 
-            print(f'Client device: {self.device}')
+            log.info(f'Client device: {self.device}')
         self.ecg_model = ClientCNN256(context=self.context, 
                                       init_weight_path=init_weight_path)
         self.ecg_model.to(self.device)
 
     def train(self, hyperparams: dict) -> None:
-        seed = hyperparams["seed"]
-        verbose = hyperparams["verbose"]
-        lr = hyperparams["lr"]
-        total_batch = math.ceil(13245 / hyperparams["batch_size"])
-        epoch = hyperparams["epoch"]
-        batch_encrypted = hyperparams['batch_encrypted']
+        if hyperparams['dataset'] == 'MIT-BIH':
+            total_batch = math.ceil(13245 / hyperparams["batch_size"])
         # set random seed
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
+        set_random_seed(hyperparams['seed'])
 
-        train_losses = list()
-        train_accs = list()
-        train_comms = list()
-        train_times = list()
-
+        train_losses, train_accs = list(), list()
+        train_comms, train_times = list(), list()
         loss_func = nn.CrossEntropyLoss()
-        optimizer = Adam(self.ecg_model.parameters(), lr=lr)
-        for e in range(epoch):
-            print(f"---- Epoch {e+1} ----")
+        optimizer = Adam(self.ecg_model.parameters(), lr=hyperparams['lr'])
+        
+        log.info('---- Training ----')
+        for e in range(hyperparams["epoch"]):
+            log.info(f"---- Epoch {e+1} ----")
             start = time.time()
             e_train_loss, e_correct, e_samples, e_comm = \
-                self.training_loop(verbose, loss_func, optimizer, batch_encrypted)
+                self.training_loop(hyperparams["verbose"], loss_func, optimizer, 
+                    hyperparams['batch_encrypted'], hyperparams['dry_run'])
             end = time.time()
             train_losses.append(e_train_loss / total_batch)
             train_accs.append(e_correct / e_samples)
@@ -153,7 +145,7 @@ class Client:
                            f"training acc: {train_accs[-1]*100:.2f}, "\
                            f"training time: {end-start:.2f}s, "\
                            f"training communication: {e_comm:.2f} Mb"
-            print(train_status)
+            log.info(train_status)
             send_msg(sock=self.socket, msg=pickle.dumps(train_status))
 
         return train_losses, train_accs, train_times, train_comms
@@ -162,7 +154,8 @@ class Client:
                     verbose: bool, 
                     loss_func, 
                     optimizer, 
-                    batch_encrypted: bool):
+                    batch_encrypted: bool,
+                    dry_run: bool):
         """The server's training function for each epoch
 
         Args:
@@ -170,7 +163,7 @@ class Client:
             loss_func (): a pytorch loss fucntion 
             optimizer (_type_): a pytorch optimizer
             batch_encrypted (_type_): _description_
-
+            dry_run (bool): if true, only train on one batch of data for each epoch
         Returns:
             _type_: _description_
         """
@@ -186,15 +179,15 @@ class Client:
             x, y = x.to(self.device), y.to(self.device)  # put to cuda or cpu
             a = self.ecg_model.forward(x)
             enc_a, enc_a_t = self.ecg_model.encrypt(a, batch_encrypted)
-            if verbose: print(f"\U0001F601 Sending enc_a of shape {enc_a.shape} to the server")
+            if verbose: print(f"📨 Sending enc_a of shape {enc_a.shape} to the server")
             send_size1 = send_msg(sock=self.socket, msg=enc_a.serialize())
-            if verbose: print(f"\U0001F601 Sending enc_a_t of shape {enc_a_t.shape} to the server")
+            if verbose: print(f"📨 Sending enc_a_t of shape {enc_a_t.shape} to the server")
             send_size2 = send_msg(sock=self.socket, msg=enc_a_t.serialize())
 
             enc_a2, recv_size1 = recv_msg(sock=self.socket)
             enc_a2 = CKKSTensor.load(context=self.context,
                                      data=enc_a2)
-            if verbose: print(f"\U0001F601 Received he_a2 of shape {enc_a2.shape} from the server")
+            if verbose: print(f"📨 Received he_a2 of shape {enc_a2.shape} from the server")
             a2 = enc_a2.decrypt().tolist() # the client decrypts he_a2
             a2 = torch.tensor(a2, requires_grad=True)
             a2 = a2.squeeze(dim=1).to(self.device)
@@ -211,11 +204,11 @@ class Client:
             batch_loss.backward()
             dJda2: Tensor = a2.grad.clone().detach().to('cpu')
             send_size3 = send_msg(sock=self.socket, msg=pickle.dumps(dJda2))
-            if verbose: print(f"\U0001F601 Sending dJda2 of shape {dJda2.shape} to the server")
+            if verbose: print(f"📨 Sending dJda2 of shape {dJda2.shape} to the server")
             
             dJda, recv_size2 = recv_msg(sock=self.socket)
             dJda = pickle.loads(dJda)
-            if verbose: print(f"\U0001F601 Received dJda of shape {dJda.shape} from the server")
+            if verbose: print(f"📨 Received dJda of shape {dJda.shape} from the server")
             dJda = dJda.to(self.device)
             assert dJda.shape == a.shape, "dJ/da and a have different shape"
 
@@ -224,10 +217,10 @@ class Client:
 
             server_Wt, recv_size3 = recv_msg(sock=self.socket)
             server_Wt = CKKSTensor.load(context=self.context, data=server_Wt)
-            if verbose: print(f"\U0001F601 Received encrypted W of shape {server_Wt.shape} from the server")
+            if verbose: print(f"📨 Received encrypted W of shape {server_Wt.shape} from the server")
             server_Wt = torch.tensor(server_Wt.decrypt().tolist()).squeeze()
             send_size4 = send_msg(sock=self.socket, msg=pickle.dumps(server_Wt))
-            if verbose: print(f"\U0001F601 Send decrypted W of shape {server_Wt.shape} to the server")
+            if verbose: print(f"📨 Send decrypted W of shape {server_Wt.shape} to the server")
             
             end = time.time()
             if verbose: print(f'Batch {i+1} loss: {batch_loss:.4f}')
@@ -238,6 +231,8 @@ class Client:
                  send_size1 + send_size2 + send_size3 + send_size4
             if verbose: print(f"Communication for batch {i+1}: {communication:.2f} (Mb)\n")
             epoch_communication += communication
+
+            if dry_run: break
 
         return epoch_train_loss, epoch_correct, epoch_total_samples, epoch_communication
 
@@ -250,7 +245,7 @@ class Client:
 #     # receive the hyperparameters from the server
 #     hyperparams, _ = recv_msg(sock=client.socket)
 #     hyperparams = pickle.loads(hyperparams)
-#     # print("\U0001F601 Received the hyperparameters from the Server")
+#     # print("📨 Received the hyperparameters from the Server")
 #     print(f'hyperparams: {hyperparams}')
 
 #     # construct the tenseal context to encrypt data homomorphically
@@ -273,7 +268,7 @@ class Client:
 #     send_sk = True if hyperparams["debugging"] else False 
 #     client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)
 #     print(f"HE Context: {he_context}")
-#     # print(f"\U0001F601 Sending the context to the server. Sending the secret key: {send_sk}")
+#     # print(f"📨 Sending the context to the server. Sending the secret key: {send_sk}")
     
 #     # load the dataset
 #     client.load_ecg_dataset(train_name=project_path/"data/train_ecg.hdf5",
@@ -301,6 +296,8 @@ def main(cfg : DictConfig) -> None:
     log.info(f'project path: {project_path}')
     log.info(f'tenseal version: {ts.__version__}')
     log.info(f'torch version: {torch.__version__}')
+    output_dir = Path(HydraConfig.get().run.dir)
+    log.info(f'output directory: {output_dir}')
     log.info(f'hyperparameters: \n{OmegaConf.to_yaml(cfg)}')
     # establish the connection with the server
     client = Client()
@@ -310,7 +307,7 @@ def main(cfg : DictConfig) -> None:
     client.make_tenseal_context(he_context=cfg['he'])
     send_sk = True if cfg['debugging'] else False 
     client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)
-    log.info(f"\U0001F601 Sending the context to the server. Sending the secret key: {send_sk}")
+    log.info(f"📨 sending the context to the server. Sending the secret key: {send_sk}")
     # load the dataset
     if cfg['dataset'] == 'MIT-BIH':
         train_path = project_path/'data/mitbih_train.hdf5'
@@ -320,6 +317,18 @@ def main(cfg : DictConfig) -> None:
                             batch_size=cfg['batch_size'])
     # build the model and start training
     client.build_model(project_path/'weights/init_weight.pth')
+    train_losses, train_accs, train_times, train_comms = client.train(cfg)
+    # after the training is done, save the results and the trained models
+    if cfg["save_model"]:    
+        df = pd.DataFrame({  # save model training process into csv file
+            'train_losses': train_losses,
+            'train_accs': train_accs,
+            'train_times (s)': train_times,
+            'train_comms (Mb)': train_comms
+        })
+        df.to_csv(output_dir / 'train_results.csv')
+        torch.save(client.ecg_model.state_dict(), 
+                   output_dir / 'trained_client.pth')
 
 
 if __name__ == "__main__":

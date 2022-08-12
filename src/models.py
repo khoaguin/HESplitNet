@@ -56,7 +56,7 @@ class ClientCNN256(nn.Module):
 
     def encrypt(self, a: torch.Tensor, batch_enc: bool) \
                 -> Tuple[CKKSTensor, CKKSTensor]:
-        """_summary_
+        """Encrypt the input tensor
 
         Args:
             a (Tensor): The plaintext activation maps
@@ -94,11 +94,11 @@ class ServerCNN256:
         self.grads = dict()
         self.cache = dict()
     
-    def set_weights(self, W):
+    def set_weights(self, W: torch.Tensor):
         """Set the weights of the model
 
         Args:
-            W (_type_): _description_
+            W (torch.Tensor): the updated weights
         """
         assert self.params['W'].shape == W.shape, "shapes do not match"
         self.params['W'] = W
@@ -135,7 +135,7 @@ class ServerCNN256:
                             from the client. shape: [1, batch_size]
                                
         Returns:
-            dJda (torch.Tensor): the derivative of the loss function w.r.t the
+            dJda (torch.Tensor): the deriv\ative of the loss function w.r.t the
                           activation map received from the client. 
                           This will be sent to the client so he can calculate
                           the gradients w.r.t the conv layers weights.

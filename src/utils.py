@@ -1,13 +1,10 @@
-"""
-Socket functions to transfer data
-"""
-
 import struct
 from pathlib import Path
 from typing import Dict
 import json
 import sys
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
@@ -91,3 +88,10 @@ def write_params(file_path: Path,
         f.write('Neural net hyperparameters: ')
         f.write(json.dumps(hyperparams))
 
+def set_random_seed(seed):
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True

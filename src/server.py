@@ -7,20 +7,24 @@ import logging
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-import numpy as np
+from hydra.core.hydra_config import HydraConfig
+
 import tenseal as ts
 import torch
 from torch import Tensor
 from tenseal.enc_context import Context
 from tenseal.tensors.ckkstensor import CKKSTensor
 
-from utils import send_msg, recv_msg
+from utils import send_msg, recv_msg, set_random_seed
+from models import ServerCNN256
 
 log = logging.getLogger(__name__)  # A logger for this file
 project_path = Path(__file__).parents[1].absolute()
 
 
 class Server:
+    """The class that represents the server in the protocol
+    """
     def __init__(self) -> None:
         self.socket = None
         self.device = None
@@ -55,46 +59,34 @@ class Server:
         self.model = ServerCNN256(init_weight_path)
 
     def train(self, hyperparams: dict):
-        seed = hyperparams["seed"]
-        verbose = hyperparams["verbose"]
-        lr = hyperparams["lr"]
-        total_batch = math.ceil(13245 / hyperparams["batch_size"])
-        epoch = hyperparams["epoch"]
-        batch_encrypted = hyperparams["batch_encrypted"]
-        batch_size = hyperparams["batch_size"]
-        # set random seed
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
-        
-        # encrypt the weights before training
-        # self.model.encrypt_weights(self.context, batch_encrypted)  
-        # self.model.encrypt_bias(self.context, batch_encrypted)
-        for e in range(epoch):
-            print(f"---- Epoch {e+1} ----")
-            self.training_loop(total_batch, verbose, lr, batch_encrypted, epoch, batch_size)
+        if hyperparams['dataset'] == 'MIT-BIH':
+            total_batch = math.ceil(13245 / hyperparams["batch_size"])
+        # set random seed for reproduceible results
+        set_random_seed(hyperparams["seed"])
+
+        log.info('---- Training ---- ')
+        for e in range(hyperparams["epoch"]):
+            log.info(f"---- Epoch {e+1} ----")
+            self.training_loop(total_batch, hyperparams["verbose"], hyperparams["lr"],
+                hyperparams["batch_encrypted"], hyperparams['dry_run'])
             train_status, _ = recv_msg(self.connection)
-            print(pickle.loads(train_status))
+            log.info(pickle.loads(train_status))
 
     def training_loop(self, 
                     total_batch: int, 
                     verbose: bool, 
                     lr: float, 
-                    batch_encrypted: bool, 
-                    epoch: int, 
-                    batch_size: int) -> None:
+                    batch_encrypted: bool,
+                    dry_run: bool) -> None:
         """The client's training function for each epoch
 
         Args:
-            total_batch (int): _description_
-            verbose (bool): _description_
-            lr (float): _description_
-            batch_encrypted (bool): _description_
-            epoch (int): _description_
-            batch_size (int): _description_
+            total_batch (int): the total number of data batches for one epoch 
+            verbose (bool): if True, then print out more info
+            lr (float): the learning rate
+            batch_encrypted (bool): if True, then homomorphically encrypt the
+                data using batching 
+            dry_run (bool): if True, only train on one batch of data
         """
         for i in range(total_batch):
             if verbose: print(f"Batch {i+1}")
@@ -102,29 +94,29 @@ class Server:
             enc_a, recv_size1 = recv_msg(sock=self.connection)
             enc_a = CKKSTensor.load(context=self.context,
                                     data=enc_a)
-            if verbose: print(f"\U0001F601 Received enc_a of shape {enc_a.shape} "
+            if verbose: print(f"📨 Received enc_a of shape {enc_a.shape} "
                               f"and size {recv_size1} Mb from the client")
             enc_a_t, recv_size2 = recv_msg(sock=self.connection)
             enc_a_t = CKKSTensor.load(context=self.context,
                                       data=enc_a_t)
-            if verbose: print(f"\U0001F601 Received enc_a_t of shape {enc_a_t.shape} "
+            if verbose: print(f"📨 Received enc_a_t of shape {enc_a_t.shape} "
                               f"and size {recv_size2} Mb from the client")
 
             if verbose: print("Forward pass ---")
             enc_a2: CKKSTensor = self.model.forward(enc_a)
             send_size1 = send_msg(sock=self.connection, msg=enc_a2.serialize())
-            if verbose: print(f"\U0001F601 Sending enc_a2 of shape {enc_a2.shape} "
+            if verbose: print(f"📨 Sending enc_a2 of shape {enc_a2.shape} "
                               f"and size {send_size1} Mb to the client")
 
             if verbose: print("Backward pass --- ")
             dJda2, recv_size3 = recv_msg(sock=self.connection)
             dJda2: Tensor = pickle.loads(dJda2)
-            if verbose: print(f"\U0001F601 Received dJda2 of shape {dJda2.shape} "
+            if verbose: print(f"📨 Received dJda2 of shape {dJda2.shape} "
                               f"and size {recv_size3} Mb from the client")
 
             dJda: Tensor = self.model.backward(dJda2, enc_a_t)
             send_size2 = send_msg(sock=self.connection, msg=pickle.dumps(dJda))
-            if verbose: print(f"\U0001F601 Sending dJda of shape {dJda.shape} "
+            if verbose: print(f"📨 Sending dJda of shape {dJda.shape} "
                               f"and size {send_size2} Mb to the client")
 
             self.model.encrypt_weights(self.context, batch_encrypted)
@@ -133,43 +125,15 @@ class Server:
             # send the encrypted weights to the client and 
             # get back the decrypted weights to reset noise
             send_size3 = send_msg(sock=self.connection, msg=enc_Wt.serialize())
-            if verbose: print(f"\U0001F601 Sending encrypted W of shape {enc_Wt.shape} "
+            if verbose: print(f"📨 Sending encrypted W of shape {enc_Wt.shape} "
                               f"and size {send_size3} Mb to the client")
             Wt, recv_size4 = recv_msg(sock=self.connection)
             Wt = pickle.loads(Wt)
-            if verbose: print(f"\U0001F601 Received decrypted W of shape {Wt.shape} "
+            if verbose: print(f"📨 Received decrypted W of shape {Wt.shape} "
                               f"and size {recv_size4} Mb from the client")
             self.model.set_weights(Wt.T)
 
-
-# @hydra.main(version_base=None, config_path="conf", config_name="config")
-# def main(hyperparams):
-#     # establish the connection with the client, send the hyperparameters
-#     server = Server()
-#     server.init_socket(host='localhost', port=1025)
-#     if hyperparams["verbose"]:
-#         print(f"Hyperparams: {hyperparams}")
-#         print("\U0001F601 Sending the hyperparameters to the Client")
-#     send_msg(sock=server.connection, msg=pickle.dumps(hyperparams))
-
-#     # receive the tenseal context from the client
-#     server.recv_ctx()
-#     if hyperparams["verbose"]:
-#         print("\U0001F601 Received the TenSeal context from the Client")
-
-#     # # build and train the model
-#     server.build_model(project_path/'weights/init_weight.pth')
-#     server.train(hyperparams)
-
-#     # save the model to .pth file
-#     output_dir = project_path / 'outputs' / hyperparams["output_dir"]
-#     if hyperparams["save_model"]:
-#         saved_params = {
-#             'W': server.model.params['W'],
-#             'b': server.model.params['b'],
-#         }
-#         torch.save(saved_params,
-#                    output_dir / 'trained_server.pth')
+            if dry_run: break
 
 
 @hydra.main(version_base=None, config_path=project_path/"conf", config_name="config")
@@ -177,6 +141,8 @@ def main(cfg : DictConfig) -> None:
     log.info(f'project path: {project_path}')
     log.info(f'tenseal version: {ts.__version__}')
     log.info(f'torch version: {torch.__version__}')
+    output_dir = Path(HydraConfig.get().run.dir)
+    log.info(f'output directory: {output_dir}')
     log.info(f'hyperparameters: \n{OmegaConf.to_yaml(cfg)}')
     # establish the connection with the client, send the hyperparameters
     server = Server()
@@ -184,24 +150,19 @@ def main(cfg : DictConfig) -> None:
     log.info('connected to the client')
     # the TenSeal HE context
     server.recv_ctx()
-    log.info("\U0001F601 Received the TenSeal context from the Client")
+    log.info("📨 received the TenSeal context from the Client")
     # build and train the model
     server.build_model(project_path/'weights/init_weight.pth')
-    # server.train(cfg)
+    server.train(cfg)
+    # save the model to .pth file
+    if cfg["save_model"]:
+        saved_params = {
+            'W': server.model.params['W'],
+            'b': server.model.params['b'],
+        }
+        torch.save(saved_params,
+                   output_dir / 'trained_server.pth')
 
 
 if __name__ == "__main__":
-    # hyperparams = {
-    #     'verbose': False,
-    #     'batch_size': 8,
-    #     # 'total_batch': math.ceil(13245/2),
-    #     'epoch': 10,
-    #     'lr': 0.001,
-    #     'seed': 0,
-    #     'batch_encrypted': True,
-    #     'save_model': True,
-    #     'debugging': False,
-    #     'output_dir': 'July_27_16384_batch8'
-    # }
-    # main(hyperparams)
     main()
