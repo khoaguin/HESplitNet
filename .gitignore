@@ -12,3 +12,7 @@ scratch.ipynb
 # datasets
 **/physionet.org
 **/ptb-xl
+
+# big data files
+data/ptbxl_test.hdf5
+data/ptbxl_train.hdf5
