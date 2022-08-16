@@ -15,20 +15,21 @@
 ## Code
 ### Structure
 ```
-├── conf              # hold the config file
-│   ├── config.yaml 
+├── conf              
+│   ├── config.yaml  # hold the configurations (dataset to use, hyperparameters)
 ├── data  
+│   ├── ptbxl_data_processing.ipynb  # code to process the PTB-XL dataset
 ├── images 
 ├── notebooks 
 ├── outputs
 ├── src  
-|   ├── client.py
-|   ├── server.py
+|   ├── client.py  # code for the client
+|   ├── server.py  # code for the server
 └── weights
  ```
 
 ### Running
 Specify the hyperparamters in `conf/config.yaml`.  
 Run `python src/server.py`. The server will be started and waiting for the client.  
-Then run `python src/client.py` in a new tab. The training process will start.
+Then run `python src/client.py` in a new tab. The training process will start.  
 After the training is done, the logs and output files will be saved in the directory `outputs/<year_month_day>/<output_dir>` where `output_dir` is defined in `conf/config.yaml`.
