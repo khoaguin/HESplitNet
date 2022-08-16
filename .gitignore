@@ -1,5 +1,18 @@
+# python stuff
 __pycache__/
+
+# output dir
+**/outputs/
+
+# scratch files
+**experiment**
 scratch.py
 scratch.ipynb
-**/outputs/
-**experiment**
+
+# datasets
+**/physionet.org
+**/ptb-xl
+
+# big data files
+data/test_ptbxl.hdf5
+data/train_ptbxl.hdf5
