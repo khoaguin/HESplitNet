@@ -30,5 +30,5 @@
 ### Running
 Specify the hyperparamters in `conf/config.yaml`.  
 Run `python src/server.py`. The server will be started and waiting for the client.  
-Then run `python src/client.py`. The training process will start.
+Then run `python src/client.py` in a new tab. The training process will start.
 After the training is done, the logs and output files will be saved in the directory `outputs/<year_month_day>/<output_dir>` where `output_dir` is defined in `conf/config.yaml`.
