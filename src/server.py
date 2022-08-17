@@ -16,7 +16,7 @@ from tenseal.enc_context import Context
 from tenseal.tensors.ckkstensor import CKKSTensor
 
 from utils import send_msg, recv_msg, set_random_seed
-from models import ServerCNN256
+from models import Server1DCNN
 
 log = logging.getLogger(__name__)  # A logger for this file
 project_path = Path(__file__).parents[1].absolute()
@@ -56,11 +56,13 @@ class Server:
                     init_weight_path: Union[str, Path]) -> None:
         """Build the neural network model for the server
         """
-        self.model = ServerCNN256(init_weight_path)
+        self.model = Server1DCNN(init_weight_path)
 
     def train(self, hyperparams: dict):
         if hyperparams['dataset'] == 'MIT-BIH':
             total_batch = math.ceil(13245 / hyperparams["batch_size"])
+        else:  # PTB-XL dataset
+            total_batch = math.ceil(19267 / hyperparams["batch_size"])
         # set random seed for reproduceible results
         set_random_seed(hyperparams["seed"])
 
@@ -138,22 +140,33 @@ class Server:
 
 @hydra.main(version_base=None, config_path=project_path/"conf", config_name="config")
 def main(cfg : DictConfig) -> None:
+    # log info to log files
     log.info(f'project path: {project_path}')
     log.info(f'tenseal version: {ts.__version__}')
     log.info(f'torch version: {torch.__version__}')
     output_dir = Path(HydraConfig.get().run.dir)
     log.info(f'output directory: {output_dir}')
     log.info(f'hyperparameters: \n{OmegaConf.to_yaml(cfg)}')
+    
     # establish the connection with the client, send the hyperparameters
     server = Server()
     server.init_socket(host='localhost', port=int(cfg['port']))
     log.info('connected to the client')
+    
     # the TenSeal HE context
     server.recv_ctx()
     log.info("📨 received the TenSeal context from the Client")
+    
     # build and train the model
-    server.build_model(project_path/'weights/init_weight.pth')
+    if cfg['dataset'] == 'MIT-BIH':
+        init_weight_path = project_path/'weights/init_weight_mitbih.pth'
+    elif cfg['dataset'] == 'PTB-XL':
+        init_weight_path = project_path/'weights/init_weight_ptbxl.pth'
+    else:
+        raise ValueError("dataset must be 'MIT-BIH' or 'PTB-XL'")
+    server.build_model(init_weight_path)
     server.train(cfg)
+
     # save the model to .pth file
     if cfg["save_model"]:
         saved_params = {

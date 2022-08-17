@@ -18,7 +18,7 @@
 ├── conf              
 │   ├── config.yaml  # hold the configurations (dataset to use, hyperparameters)
 ├── data  
-│   ├── ptbxl_data_processing.ipynb  # code to process the PTB-XL dataset
+│   ├── ptbxl_processing.ipynb  # code to process the PTB-XL dataset
 ├── images 
 ├── notebooks 
 ├── outputs
@@ -27,6 +27,8 @@
 |   ├── server.py  # code for the server
 └── weights
  ```
+### Data
+You can run the file `data/ptbxl_processing.ipynb` to produce the `.hdf5` files for the PTB-XL dataset, but it is recommended that you just download them [here]().
 
 ### Running
 Specify the hyperparamters in `conf/config.yaml`.  

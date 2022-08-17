@@ -9,32 +9,39 @@ from tenseal.enc_context import Context
 from tenseal.tensors.ckkstensor import CKKSTensor
 
 
-class ClientCNN256(nn.Module):
-    """The client's 1D CNN model with activation map size of 256 time steps
-
-    Args:
-        nn ([torch.Module]): [description]
-    """
+class Client1DCNN(nn.Module):
     def __init__(self, 
                  context: Context, 
-                 init_weight_path: Union[str, Path]):
-        super(ClientCNN256, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=1, 
+                 init_weight_path: Union[str, Path],
+                 in_channels: int,
+                 hidden_dim: int):
+        """Initializing the layers, load the initial weights 
+        and the context of the model
+
+        Args:
+            context (Context): the TenSeal context
+            init_weight_path (Union[str, Path]): the initial weights of the model
+            in_channels (int): the number of input channels
+            hidden_dim (int): the hidden dimension (output dimension of the client model)
+        """
+        super(Client1DCNN, self).__init__()
+        self.conv1 = nn.Conv1d(in_channels=in_channels, 
                                out_channels=16, 
                                kernel_size=7, 
                                padding=3,
-                               stride=1)  # 128 x 16
+                               stride=1)  
         self.relu1 = nn.LeakyReLU()
-        self.pool1 = nn.MaxPool1d(2)  # 64 x 16
+        self.pool1 = nn.MaxPool1d(2)  
         self.conv2 = nn.Conv1d(in_channels=16, 
                                out_channels=8, 
                                kernel_size=5, 
-                               padding=2)  # 64 x 8
+                               padding=2)
         self.relu2 = nn.LeakyReLU()
-        self.pool2 = nn.MaxPool1d(2)  # 32 x 8 = 256
+        self.pool2 = nn.MaxPool1d(2)  
         
         self.load_init_weights(init_weight_path)
         self.context = context
+        self.hidden_dim = hidden_dim
 
     def load_init_weights(self, init_weight_path: Union[str, Path]):
         checkpoint = torch.load(init_weight_path)
@@ -50,7 +57,7 @@ class ClientCNN256(nn.Module):
         x = self.conv2(x) 
         x = self.relu2(x)
         x = self.pool2(x)
-        x = x.view(-1, 256)  # [batch_size, 256]
+        x = x.view(-1, self.hidden_dim)  # [batch_size, hidden_dim]
         
         return x
 
@@ -80,7 +87,7 @@ class ClientCNN256(nn.Module):
         return enc_a, enc_a_t
 
 
-class ServerCNN256:
+class Server1DCNN:
     """The 1D CNN model on the server side that has input activation map
     of 256 time steps
     """
@@ -88,7 +95,7 @@ class ServerCNN256:
     def __init__(self, init_weight_path: Union[str, Path]):
         checkpoint = torch.load(init_weight_path)
         self.params = dict(
-            W = checkpoint["linear.weight"],  # [5, 256] ([output dimension, hidden dimension])
+            W = checkpoint["linear.weight"],  # [5, hidden dimension]
             b = checkpoint["linear.bias"]  # [5]
         )
         self.grads = dict()

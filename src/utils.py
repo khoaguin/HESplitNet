@@ -11,19 +11,19 @@ from torch.utils.data import Dataset
 import h5py
 
 
-class ECGDataset(Dataset):
+class MITBIH(Dataset):
     """The class used by the client to load the dataset
 
     Args:
         Dataset: the Dataset class from torch
     """
-    def __init__(self, train_name, test_name, train=True):
+    def __init__(self, train_path, test_path, train=True):
         if train:
-            with h5py.File(train_name, 'r') as hdf:
+            with h5py.File(train_path, 'r') as hdf:
                 self.x = hdf['x_train'][:]
                 self.y = hdf['y_train'][:]
         else:
-            with h5py.File(test_name, 'r') as hdf:
+            with h5py.File(test_path, 'r') as hdf:
                 self.x = hdf['x_test'][:]
                 self.y = hdf['y_test'][:]
     
@@ -34,6 +34,30 @@ class ECGDataset(Dataset):
         return torch.tensor(self.x[idx], dtype=torch.float), \
                torch.tensor(self.y[idx])
 
+
+class PTBXL(Dataset):
+    """
+    The class used by the client to 
+    load the PTBXL dataset
+
+    Args:
+        Dataset ([type]): [description]
+    """
+    def __init__(self, train_path, test_path, train=True):
+        if train:
+            with h5py.File(train_path, 'r') as hdf:
+                self.x = hdf['X_train'][:]
+                self.y = hdf['y_train'][:]
+        else:
+            with h5py.File(test_path, 'r') as hdf:
+                self.x = hdf['X_test'][:]
+                self.y = hdf['y_test'][:]
+    
+    def __len__(self):
+        return len(self.x)
+    
+    def __getitem__(self, idx):
+        return torch.tensor(self.x[idx], dtype=torch.float), torch.tensor(self.y[idx])
 
 def send_msg(sock, msg):
     '''

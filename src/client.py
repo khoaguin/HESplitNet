@@ -4,9 +4,8 @@ import time
 from pathlib import Path
 import math
 import logging
-from typing import Union, Tuple, Dict
+from typing import Union, Dict
 
-import numpy as np
 import pandas as pd
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -24,8 +23,8 @@ import tenseal as ts
 from tenseal.enc_context import Context
 from tenseal.tensors.ckkstensor import CKKSTensor
 
-from utils import send_msg, recv_msg, ECGDataset, set_random_seed
-from models import ClientCNN256
+from utils import send_msg, recv_msg, set_random_seed, MITBIH, PTBXL
+from models import Client1DCNN
 
 log = logging.getLogger(__name__)
 project_path = Path(__file__).parents[1].absolute()
@@ -54,19 +53,28 @@ class Client:
         self.socket = socket.socket()
         self.socket.connect((host, port))  # connect to a remote [server] address,
     
-    def load_ecg_dataset(self, 
+    def load_ecg_dataset(self,
+                         dataset: str,
                          train_path: str, 
                          test_path: str,
-                         batch_size: int) -> None:
-        """[summary]
+                         batch_size: int,
+                         ) -> None:
+        """Creating the Dataset and DataLoader to load the .hdf5 datasets
+        into batches for training and testing
 
         Args:
-            train_path (str): [description]
-            test_path (str): [description]
-            batch_size (int): [description]
+            dataset (str): the name of the dataset
+            train_path (str): the path to the training .hdf5 file
+            test_path (str): the path to the test .hdf5 file
+            batch_size (int): the batch size
         """
-        train_dataset = ECGDataset(train_path, test_path, train=True)
-        test_dataset = ECGDataset(train_path, test_path, train=False)
+        if dataset == 'MIT-BIH':
+            train_dataset = MITBIH(train_path, test_path, train=True)
+            test_dataset = MITBIH(train_path, test_path, train=False)
+        elif dataset == 'PTB-XL':
+            train_dataset = PTBXL(train_path, test_path, train=True)
+            test_dataset = PTBXL(train_path, test_path, train=False)
+
         self.train_loader = DataLoader(train_dataset, batch_size=batch_size)
         self.test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
@@ -99,12 +107,19 @@ class Client:
         _ = send_msg(sock=self.socket,
                      msg=self.context.serialize(save_secret_key=send_secret_key))
 
-    def build_model(self, init_weight_path: Union[str, Path]) -> None:
-        """Build the neural network model for the client
+    def build_model(self, 
+                    init_weight_path: Union[str, Path],
+                    in_channels: int,
+                    hidden_dim: int) -> None:
+        """The function used to build the 1D CNN model of the client side
+
+        Args:
+            init_weight_path (Union[str, Path]): The path to the initial weights
+            in_channels (int): Number of input channels (different for MIT-BIH and PTB-XL datasets)
+            hidden_dim (int): The value of the hidden dimension (input to the linear layer)
 
         Raises:
-            TypeError: if the tenseal context needed to encrypt the activation 
-                        map is None, then raise an error
+            TypeError: Raised if the Tenseal context is None
         """
         if self.context == None:
             raise TypeError("Tenseal Context is None")
@@ -114,13 +129,17 @@ class Client:
         else:
             self.device = torch.device('cpu') 
             log.info(f'Client device: {self.device}')
-        self.ecg_model = ClientCNN256(context=self.context, 
-                                      init_weight_path=init_weight_path)
+        self.ecg_model = Client1DCNN(context=self.context, 
+                                     init_weight_path=init_weight_path,
+                                     in_channels=in_channels,
+                                     hidden_dim=hidden_dim)
         self.ecg_model.to(self.device)
 
     def train(self, hyperparams: dict) -> None:
         if hyperparams['dataset'] == 'MIT-BIH':
             total_batch = math.ceil(13245 / hyperparams["batch_size"])
+        else:  # PTB-XL dataset
+            total_batch = math.ceil(19267 / hyperparams["batch_size"])
         # set random seed
         set_random_seed(hyperparams['seed'])
 
@@ -239,31 +258,51 @@ class Client:
 
 @hydra.main(version_base=None, config_path=project_path/"conf", config_name="config")
 def main(cfg : DictConfig) -> None:
+    # logging info
     log.info(f'project path: {project_path}')
     log.info(f'tenseal version: {ts.__version__}')
     log.info(f'torch version: {torch.__version__}')
     output_dir = Path(HydraConfig.get().run.dir)
     log.info(f'output directory: {output_dir}')
     log.info(f'hyperparameters: \n{OmegaConf.to_yaml(cfg)}')
+    
     # establish the connection with the server
     client = Client()
     client.init_socket(host='localhost', port=int(cfg['port']))
     log.info('connected to the server')
+    
     # the TenSeal HE context
     client.make_tenseal_context(he_context=cfg['he'])
     send_sk = True if cfg['debugging'] else False 
     client.send_context(send_secret_key=send_sk)  # only send the public context (private key dropped)
     log.info(f"📨 sending the context to the server. Sending the secret key: {send_sk}")
-    # load the dataset
+    
+    # load the dataset and set some neural network parameters accordingly
     if cfg['dataset'] == 'MIT-BIH':
+        init_weight_path = project_path/'weights/init_weight_mitbih.pth'
         train_path = project_path/'data/mitbih_train.hdf5'
         test_path = project_path/'data/mitbih_test.hdf5'
-    client.load_ecg_dataset(train_path=train_path,
+        in_channels = 1
+        hidden_dim = 256
+    elif cfg['dataset'] == 'PTB-XL':
+        init_weight_path = project_path/'weights/init_weight_ptbxl.pth'
+        train_path = project_path/'data/ptbxl_train.hdf5'
+        test_path = project_path/'data/ptbxl_test.hdf5'
+        in_channels = 12
+        hidden_dim = 2000
+    else:
+        raise ValueError("dataset must be 'MIT-BIH' or 'PTB-XL'")
+    client.load_ecg_dataset(dataset=cfg['dataset'],
+                            train_path=train_path,
                             test_path=test_path,
                             batch_size=cfg['batch_size'])
+
     # build the model and start training
-    client.build_model(project_path/'weights/init_weight.pth')
+    client.build_model(init_weight_path=init_weight_path,
+                       in_channels=in_channels,
+                       hidden_dim=hidden_dim)
     train_losses, train_accs, train_times, train_comms = client.train(cfg)
+    
     # after the training is done, save the results and the trained models
     if cfg["save_model"]:    
         df = pd.DataFrame({  # save model training process into csv file
