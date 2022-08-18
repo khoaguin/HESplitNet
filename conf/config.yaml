@@ -1,7 +1,7 @@
 # dataset
 dataset: PTB-XL  # MIT-BIH or PTB-XL
 # hyperparams
-port: 1024
+port: 1025
 verbose: True
 batch_size: 8
 epoch: 10
@@ -10,7 +10,7 @@ seed: 0
 batch_encrypted: True
 save_model: True
 debugging: False  # if True, the client sends the secret key to the server (only for debugging)
-dry_run: True  # if True, only train on 1 batch of data
+dry_run: False  # if True, only train on 1 batch of data
 he:
   P: 8192
   C: [40, 21, 21, 21, 40]

@@ -9,11 +9,10 @@
 `h5py==3.7.0`  
 `hydra-core==1.1.1`  
 
-## Protocol Explanation
-![protocol](./images/protocol.png)
+<!-- ## Protocol
+![protocol](./images/protocol.png) -->
 
-## Code
-### Structure
+## Repository Structure
 ```
 ├── conf              
 │   ├── config.yaml  # hold the configurations (dataset to use, hyperparameters)
@@ -27,10 +26,10 @@
 |   ├── server.py  # code for the server
 └── weights
  ```
-### Data
+## Data
 You can run the file `data/ptbxl_processing.ipynb` to produce the `.hdf5` files for the PTB-XL dataset, but it is recommended that you just download them [here]().
 
-### Running
+## Running
 Specify the hyperparamters in `conf/config.yaml`.  
 Run `python src/server.py`. The server will be started and waiting for the client.  
 Then run `python src/client.py` in a new tab. The training process will start.  

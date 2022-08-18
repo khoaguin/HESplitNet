@@ -243,7 +243,7 @@ class Client:
             
             end = time.time()
             if verbose: print(f'Batch {i+1} loss: {batch_loss:.4f}')
-            if verbose: print(f"Training time for batch {i+1}: {end-start:.2f}s\n")
+            if verbose: print(f"Training time for batch {i+1}: {end-start:.2f}s")
 
             # calculate communication overhead
             communication = recv_size1 + recv_size2 + recv_size3 +\
