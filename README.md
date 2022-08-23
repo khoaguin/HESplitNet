@@ -27,7 +27,7 @@
 └── weights
  ```
 ## Data
-You can run the file `data/ptbxl_processing.ipynb` to produce the `.hdf5` files for the PTB-XL dataset, but it is recommended that you just download them [here]().
+You can run the file `data/ptbxl_processing.ipynb` to produce the `.hdf5` files for the PTB-XL dataset, but it is recommended that you just download them [here](https://zenodo.org/record/7006692) and put the `.hdf5` files in the `data` folder.
 
 ## Running
 Specify the hyperparamters in `conf/config.yaml`.  

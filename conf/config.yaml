@@ -3,7 +3,7 @@ dataset: PTB-XL  # MIT-BIH or PTB-XL
 # hyperparams
 port: 1025
 verbose: True
-batch_size: 8
+batch_size: 4
 epoch: 10
 lr: 0.001
 seed: 0
@@ -15,7 +15,7 @@ he:
   P: 8192
   C: [40, 21, 21, 21, 40]
   Delta: 2097152 # 2^21
-output_dir: 'ptbxl_8192_batch8_epoch10_lr0.001'
+output_dir: 'ptbxl_8192_batch4_epoch10_lr0.001'
 # hydra configurations
 hydra:
   run:
