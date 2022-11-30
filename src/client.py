@@ -256,7 +256,7 @@ class Client:
         return epoch_train_loss, epoch_correct, epoch_total_samples, epoch_communication
 
 
-@hydra.main(version_base=None, config_path=project_path/"conf", config_name="config")
+@hydra.main(config_path=project_path/"conf", config_name="config")
 def main(cfg : DictConfig) -> None:
     # logging info
     log.info(f'project path: {project_path}')

@@ -12,6 +12,7 @@ scratch.ipynb
 # datasets
 **/physionet.org
 **/ptb-xl
+split-learning-1D/
 
 # big data files
 data/ptbxl_test.hdf5

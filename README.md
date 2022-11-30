@@ -4,10 +4,11 @@
 ## Requirements
 `python==3.9.7`  
 `tenseal==0.3.10`  
-`pytorch==1.8.1+cu102`  
+`torch==1.8.1+cu102`  
 `icecream==2.1.2`  
 `h5py==3.7.0`  
 `hydra-core==1.1.1`  
+`pandas==1.5.2`  
 
 <!-- ## Protocol
 ![protocol](./images/protocol.png) -->

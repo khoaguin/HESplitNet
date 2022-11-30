@@ -138,7 +138,7 @@ class Server:
             if dry_run: break
 
 
-@hydra.main(version_base=None, config_path=project_path/"conf", config_name="config")
+@hydra.main(config_path=project_path/"conf", config_name="config")
 def main(cfg : DictConfig) -> None:
     # log info to log files
     log.info(f'project path: {project_path}')

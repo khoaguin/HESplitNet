@@ -1,7 +1,7 @@
 # dataset
-dataset: PTB-XL  # MIT-BIH or PTB-XL
+dataset: MIT-BIH  # MIT-BIH or PTB-XL
 # hyperparams
-port: 1025
+port: 10080
 verbose: True
 batch_size: 16
 epoch: 10
