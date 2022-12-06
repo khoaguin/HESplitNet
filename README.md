@@ -15,24 +15,29 @@
 
 ## Repository Structure
 ```
-├── conf              
+├── conf
 │   ├── config.yaml  # hold the configurations (dataset to use, hyperparameters)
 ├── data  
 │   ├── ptbxl_processing.ipynb  # code to process the PTB-XL dataset
-├── images 
-├── notebooks 
-├── outputs
-├── src  
-|   ├── client.py  # code for the client
-|   ├── server.py  # code for the server
-└── weights
+├── images  # images to be used in notebooks and README.md
+├── notebooks  # contains jupyter notebooks 
+├── outputs  # will be automatically created after running the protocols
+├── hesplitnet  # contains the code
+|   ├── multi-clients  # code for multi clients protocol
+|   ├── single-client  # code for the single client protocol
+└── weights  # contains the initial and trained weights
  ```
 ## Data
 You can run the file `data/ptbxl_processing.ipynb` to produce the `.hdf5` files for the PTB-XL dataset, but it is recommended that you just download them [here](https://zenodo.org/record/7006692) and put the `.hdf5` files in the `data` folder.
 
 ## Running
-- Specify the hyperparamters in `conf/config.yaml`.  
-- Run `python src/server.py`. The server will be started and waiting for the client.  
-- Then run `python src/client.py` in a new tab. The training process will start.  
+1. Create a new conda environment, for example `conda create -n hesplitnet python=3.9.7` and activate it using `conda activate hesplitnet`
+2. Install the required packages in the `requirements.txt`, e.g. `pip install -r requirements.txt`
+3. Install `hesplitnet` as a package using `pip install -e .`
+4. Specify the hyperparamters for your protocol in `conf/config.yaml`  
+5. For the single client protocol:
+- In the terminal, run `python hesplitnet/single-client/server.py`. The server will be started and waiting for the client.  
+- Open a new tab in the terminal and run `python hesplitnet/single-client/client.py` in a new tab. The training process will start.
 - After the training is done, the logs and output files will be saved in the directory `outputs/<year_month_day>/<output_dir>` where `output_dir` is defined in `conf/config.yaml`.
 - After training, go to `notebooks/test_mitbih.ipynb` or `notebooks/test_ptbxl.ipynb` to run and inspect the testing procedure for the MIT-BIH or PTB-XL dataset respectively.
+6. For the multiple clients protocol, run 

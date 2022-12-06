@@ -12,8 +12,13 @@ scratch.ipynb
 # datasets
 **/physionet.org
 **/ptb-xl
+
+# reference repo
 split-learning-1D/
 
 # big data files
 data/ptbxl_test.hdf5
 data/ptbxl_train.hdf5
+
+# pip package
+/hesplitnet.egg-info

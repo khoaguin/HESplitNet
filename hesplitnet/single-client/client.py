@@ -23,12 +23,11 @@ import tenseal as ts
 from tenseal.enc_context import Context
 from tenseal.tensors.ckkstensor import CKKSTensor
 
-from utils import send_msg, recv_msg, set_random_seed, MITBIH, PTBXL
-from models import Client1DCNN
+from hesplitnet.utils import send_msg, recv_msg, set_random_seed, MITBIH, PTBXL
+from hesplitnet.models import Client1DCNN
 
 log = logging.getLogger(__name__)
-project_path = Path(__file__).parents[1].absolute()
-
+project_path = Path(__file__).parents[2].absolute()
 
 class Client:
     """

@@ -15,11 +15,11 @@ from torch import Tensor
 from tenseal.enc_context import Context
 from tenseal.tensors.ckkstensor import CKKSTensor
 
-from utils import send_msg, recv_msg, set_random_seed
-from models import Server1DCNN
+from hesplitnet.utils import send_msg, recv_msg, set_random_seed
+from hesplitnet.models import Server1DCNN
 
 log = logging.getLogger(__name__)  # A logger for this file
-project_path = Path(__file__).parents[1].absolute()
+project_path = Path(__file__).parents[2].absolute()
 
 
 class Server:
