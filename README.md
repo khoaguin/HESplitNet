@@ -1,4 +1,4 @@
-# HESplit
+# HESplitNet
 2-party Privacy-preserving Neural Network Training using Split Learning and Homomorphic Encryption (CKKS Scheme).
 
 ## Requirements

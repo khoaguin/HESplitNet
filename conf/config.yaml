@@ -15,7 +15,7 @@ he:
   P: 8192
   C: [40, 21, 21, 21, 40]
   Delta: 2097152 # 2^21
-output_dir: 'ptbxl_8192_batch16_epoch10_lr0.001'
+output_dir: 'ptbxl_8192_batch16_epoch10_lr0.001'  # name of the output folder
 # hydra configurations
 hydra:
   run:
