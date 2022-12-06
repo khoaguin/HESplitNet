@@ -23,7 +23,8 @@ project_path = Path(__file__).parents[2].absolute()
 
 
 class Server:
-    """The class that represents the server in the protocol
+    """
+    The class that represents the server in the protocol
     """
     def __init__(self) -> None:
         self.socket = None

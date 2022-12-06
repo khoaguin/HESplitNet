@@ -6,11 +6,11 @@ import math
 import logging
 from typing import Union, Dict
 
-import pandas as pd
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from hydra.core.hydra_config import HydraConfig
 
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -29,12 +29,12 @@ from hesplitnet.models import Client1DCNN
 log = logging.getLogger(__name__)
 project_path = Path(__file__).parents[2].absolute()
 
+
 class Client:
     """
     The class that represents the client in the protocol.    
     """    
     def __init__(self) -> None:
-        # paths to files and directories
         self.socket = None
         self.train_loader = None
         self.test_loader = None
@@ -317,4 +317,3 @@ def main(cfg : DictConfig) -> None:
 
 if __name__ == "__main__":
     main()
-    # print('client')
