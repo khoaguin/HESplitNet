@@ -35,7 +35,7 @@ class Server:
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((host, port))  # associates the socket with its local address
         self.socket.listen()
-        self.connection, addr = self.socket.accept()  # wait for the client to connect
+        # self.connection, addr = self.socket.accept()  # wait for the client to connect
     
     def client_thread(self):
         self.connection.send(str.encode('welcome to the server'))
@@ -46,6 +46,17 @@ class Server:
                 break
             self.connection.sendall(str.encode(reply))
         self.connection.close()
+
+
+def client_thread(connection):
+    connection.send(str.encode('welcome to the server'))
+    while True:
+        data = connection.recv(1024)
+        reply = "Hello I am server, here is what you sent: " + data.decode("utf-8")
+        if not data:
+            break
+        connection.sendall(str.encode(reply))
+    connection.close()
 
 
 @hydra.main(config_path=project_path/"conf", config_name="config_multiclient")
@@ -61,9 +72,15 @@ def main(cfg : DictConfig) -> None:
     # establish the connection with the clients, send the hyperparameters
     server = Server()
     server.init_socket(host='localhost', port=int(cfg['port']))
-    log.info('connected to the client')
-    # client thread
-    start_new_thread(server.client_thread, (client, ))
+    thread_count = 0
+    while True:
+        connection, addr = server.socket.accept()  # wait for the client to connect
+        log.info(f'connected to: {addr[0]} {str(addr[1])}')
+        # client thread
+        start_new_thread(client_thread, (connection,))
+        thread_count += 1
+        log.info(f'thread_count = {thread_count}')
+
 
 if __name__ == "__main__":
     main()

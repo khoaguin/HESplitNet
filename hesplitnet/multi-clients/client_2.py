@@ -1,5 +1,6 @@
 from pathlib import Path
 import logging
+import time
 import socket
 
 import hydra
@@ -33,7 +34,10 @@ class Client2:
             port ([int]): [description]
         """
         self.socket = socket.socket()
-        self.socket.connect((host, port))  # connect to a remote [server] address,
+        try:
+            self.socket.connect((host, port))  # connect to a remote [server] address,
+        except socket.error as e:
+            log.error(str(e))
 
 
 @hydra.main(config_path=project_path/"conf", config_name="config_multiclient")
@@ -51,6 +55,16 @@ def main(cfg : DictConfig) -> None:
     client.init_socket(host='localhost', port=int(cfg['port']))
     log.info('connected to the server')
 
+    welcome = client.socket.recv(1024)
+    print(welcome.decode('utf-8'))
+    # send something to the server
+    while True:
+        # Input = input("Let's send something to the server: ")
+        # client.socket.send(str.encode(Input))
+        client.socket.send(str.encode('I am client 2'))
+        time.sleep(2)
+        response = client.socket.recv(1024)
+        print(response.decode("utf-8"))
 
 if __name__ == "__main__":
     main()

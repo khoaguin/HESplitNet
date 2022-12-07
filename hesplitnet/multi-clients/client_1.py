@@ -37,7 +37,10 @@ class Client1:
             port ([int]): [description]
         """
         self.socket = socket.socket()
-        self.socket.connect((host, port))  # connect to a remote [server] address,
+        try:
+            self.socket.connect((host, port))  # connect to a remote [server] address,
+        except socket.error as e:
+            log.error(str(e))
 
 
 @hydra.main(config_path=project_path/"conf", config_name="config_multiclient")
@@ -54,12 +57,14 @@ def main(cfg : DictConfig) -> None:
     client = Client1()
     client.init_socket(host='localhost', port=int(cfg['port']))
     log.info('connected to the server')
-    time.sleep(3)
 
+    welcome = client.socket.recv(1024)
+    print(welcome.decode('utf-8'))
     # send something to the server
     while True:
-        Input = input("Say something")
-        client.socket.send(str.encode(Input))
+        # Input = input("Let's send something to the server: ")
+        client.socket.send(str.encode('I am client 1'))
+        time.sleep(1)
         response = client.socket.recv(1024)
         print(response.decode("utf-8"))
     
