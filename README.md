@@ -28,7 +28,9 @@ Multi-party Privacy-preserving Neural Network Training using Split Learning and 
 └── weights  # contains the initial and trained weights
  ```
 ## Data
-You can run the file `data/ptbxl_processing.ipynb` to produce the `.hdf5` files for the PTB-XL dataset, but it is recommended that you just download them [here](https://zenodo.org/record/7006692) and put the `.hdf5` files in the `data` folder.
+The processed [MIT-BIH dataset](https://physionet.org/content/mitdb/1.0.0/) for the one-client protocol (`mitbih_train.hdf5` and `mitbih_test.hdf5`) and multi-client protocol (`multiclient_mitbih_train.hdf5` and `multiclient_mitbih_test.hdf5`) are on the github page.
+
+For the [PTB-XL dataset](https://physionet.org/content/ptb-xl/1.0.0/), you can run the file `data/ptbxl_processing.ipynb` to produce the `.hdf5` files for the PTB-XL dataset, but it is recommended that you just download them [here](https://zenodo.org/record/7006692) and put the `.hdf5` files in the `data` folder.
 
 ## Running
 1. Create a new conda environment, for example `conda create -n hesplitnet python=3.9.7` and activate it using `conda activate hesplitnet`
