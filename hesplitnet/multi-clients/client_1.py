@@ -11,6 +11,8 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from hydra.core.hydra_config import HydraConfig
 
+from hesplitnet.utils import MultiMITBIH
+
 
 project_path = Path(__file__).parents[2].absolute()
 log = logging.getLogger(__name__)
@@ -41,6 +43,18 @@ class Client1:
             self.socket.connect((host, port))  # connect to a remote [server] address,
         except socket.error as e:
             log.error(str(e))
+    
+    def load_dataset(self, dataset):
+        """
+        Create the train and test dataloader
+        """
+        if dataset == 'MIT-BIH':
+            train_path = project_path / 'data' / 'multiclient_mitbih_train.hdf5'
+            test_path = project_path / 'data' / 'multiclient_mitbih_test.hdf5' 
+            train_dataset = MultiMITBIH(train_path, test_path, client=1, train=True)
+            test_dataset = MultiMITBIH(train_path, test_path, client=1, train=False)
+        if dataset == 'PTB-XL':
+            pass
 
 
 @hydra.main(config_path=project_path/"conf", config_name="config_multiclient")
@@ -54,18 +68,21 @@ def main(cfg : DictConfig) -> None:
     log.info(f'hyperparameters: \n{OmegaConf.to_yaml(cfg)}')
 
     # establish the connection with the server
-    client = Client1()
-    client.init_socket(host='localhost', port=int(cfg['port']))
+    client1 = Client1()
+    client1.init_socket(host='localhost', port=int(cfg['port']))
     log.info('connected to the server')
 
-    welcome = client.socket.recv(1024)
+    # load the dataset
+    client1.load_dataset(dataset=cfg['dataset'])
+
+    # communicating with the server
+    welcome = client1.socket.recv(1024)  # welcoming message
     print(welcome.decode('utf-8'))
-    # send something to the server
     while True:
         # Input = input("Let's send something to the server: ")
-        client.socket.send(str.encode('I am client 1'))
+        client1.socket.send(str.encode('I am client 1'))
         time.sleep(1)
-        response = client.socket.recv(1024)
+        response = client1.socket.recv(1024)
         print(response.decode("utf-8"))
     
 

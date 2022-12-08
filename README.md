@@ -28,9 +28,9 @@ Multi-party Privacy-preserving Neural Network Training using Split Learning and 
 └── weights  # contains the initial and trained weights
  ```
 ## Data
-The processed [MIT-BIH dataset](https://physionet.org/content/mitdb/1.0.0/) for the one-client protocol (`mitbih_train.hdf5` and `mitbih_test.hdf5`) and multi-client protocol (`multiclient_mitbih_train.hdf5` and `multiclient_mitbih_test.hdf5`) are on the github page.
+The processed [MIT-BIH dataset](https://physionet.org/content/mitdb/1.0.0/) for the one-client protocol (`mitbih_train.hdf5` and `mitbih_test.hdf5`) and multi-client protocol (`multiclient_mitbih_train.hdf5` and `multiclient_mitbih_test.hdf5`) are in the `data/` folder.
 
-For the [PTB-XL dataset](https://physionet.org/content/ptb-xl/1.0.0/), you can run the file `data/ptbxl_processing.ipynb` to produce the `.hdf5` files for the PTB-XL dataset, but it is recommended that you just download them [here](https://zenodo.org/record/7006692) and put the `.hdf5` files in the `data` folder.
+For the [PTB-XL dataset](https://physionet.org/content/ptb-xl/1.0.0/), you can run the file `data/ptbxl_processing.ipynb` to produce the `.hdf5` files, but it is recommended that you just download them [here](https://zenodo.org/record/7006692) and put the `.hdf5` files in the `data` folder.
 
 ## Running
 1. Create a new conda environment, for example `conda create -n hesplitnet python=3.9.7` and activate it using `conda activate hesplitnet`
@@ -38,8 +38,12 @@ For the [PTB-XL dataset](https://physionet.org/content/ptb-xl/1.0.0/), you can r
 3. Install `hesplitnet` as a package using `pip install -e .`
 4. Specify the hyperparamters for your protocol in `conf/config.yaml`  
 5. For the protocol that only involves the server and one client:
-- In the terminal, run `python hesplitnet/single-client/server.py`. The server will be started and waiting for the client.  
-- Open a new tab in the terminal and run `python hesplitnet/single-client/client.py`. The training process will start.
-- After the training is done, the logs and output files will be saved in the directory `outputs/<year_month_day>/<output_dir>` where `output_dir` is defined in `conf/config.yaml`.
-- After training, go to `notebooks/test_mitbih.ipynb` or `notebooks/test_ptbxl.ipynb` to run and inspect the testing procedure for the MIT-BIH or PTB-XL dataset respectively.
-6. For the protocol that has multiple clients protocol: 
+    - In the terminal, run `python hesplitnet/single-client/server.py`. The server will be started and waiting for the client.  
+    - Open a new tab in the terminal and run `python hesplitnet/single-client/client.py`. The training process will start.
+    - After the training is done, the logs and output files will be saved in the directory `outputs/<year_month_day>/<output_dir>` where `output_dir` is defined in `conf/config.yaml`.
+    - After training, go to `notebooks/test_mitbih.ipynb` or `notebooks/test_ptbxl.ipynb` to run and inspect the testing procedure for the MIT-BIH or PTB-XL dataset respectively.
+6. For the protocol that has multiple clients (3 clients): 
+    -
+    -
+    -
+    -

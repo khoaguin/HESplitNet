@@ -35,6 +35,39 @@ class MITBIH(Dataset):
                torch.tensor(self.y[idx])
 
 
+class MultiMITBIH(Dataset):
+    """The class used by the clients in the multi-client protocol
+    to load the MIT-BIH dataset
+    """
+    def __init__(self, train_path: Path, test_path: Path, 
+                 client: int, train=True):
+        """The initialization function
+
+        Args:
+            train_path (Path): The path to the train .hdf5 file
+            test_path (Path): The path to the test .hdf5 file
+            client (int): either 1, 2 or 3
+            train (bool, optional): if True, load the train data
+                                    else, load the test data
+        """
+        if train:
+            with h5py.File(train_path, 'r') as hdf:
+                self.x = hdf[f'x_train_' + str(client)][:]
+                self.y = hdf[f'y_train_' + str(client)][:]
+        else:
+            with h5py.File(test_path, 'r') as hdf:
+                self.x = hdf[f'x_test_' + str(client)][:]
+                self.y = hdf[f'y_test_' + str(client)][:]
+    
+    def __len__(self):
+        return len(self.x)
+    
+    def __getitem__(self, idx):
+        return torch.tensor(self.x[idx], dtype=torch.float), \
+               torch.tensor(self.y[idx])
+
+
+
 class PTBXL(Dataset):
     """
     The class used by the client to 
