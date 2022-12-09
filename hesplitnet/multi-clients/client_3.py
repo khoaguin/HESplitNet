@@ -2,13 +2,19 @@ from pathlib import Path
 import logging
 import time
 import socket
+import pickle
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from hydra.core.hydra_config import HydraConfig
 
 import torch
+from torch.utils.data import DataLoader
 import tenseal as ts
+
+from hesplitnet.utils import MultiMITBIH
+from hesplitnet.utils import send_msg, recv_msg
+
 
 project_path = Path(__file__).parents[2].absolute()
 log = logging.getLogger(__name__)
@@ -40,6 +46,21 @@ class Client3:
         except socket.error as e:
             log.error(str(e))
 
+    def load_dataset(self, dataset, batch_size):
+        """
+        Create the train and test dataloader
+        """
+        if dataset == 'MIT-BIH':
+            train_path = project_path / 'data' / 'multiclient_mitbih_train.hdf5'
+            test_path = project_path / 'data' / 'multiclient_mitbih_test.hdf5' 
+            train_dataset = MultiMITBIH(train_path, test_path, client=3, train=True)
+            test_dataset = MultiMITBIH(train_path, test_path, client=3, train=False)
+        if dataset == 'PTB-XL':
+            pass
+        
+        self.train_loader = DataLoader(train_dataset, batch_size=batch_size)
+        self.test_loader = DataLoader(test_dataset, batch_size=batch_size)
+
 
 @hydra.main(config_path=project_path/"conf", config_name="config_multiclient")
 def main(cfg : DictConfig) -> None:
@@ -52,20 +73,32 @@ def main(cfg : DictConfig) -> None:
     log.info(f'hyperparameters: \n{OmegaConf.to_yaml(cfg)}')
 
     # establish the connection with the server
-    client = Client3()
-    client.init_socket(host='localhost', port=int(cfg['port']))
+    client3 = Client3()
+    client3.init_socket(host='localhost', port=int(cfg['port']))
     log.info('connected to the server')
 
-    welcome = client.socket.recv(1024)
+    # load the dataset
+    client3.load_dataset(dataset=cfg['dataset'], batch_size=3)
+
+    welcome = client3.socket.recv(1024)
     print(welcome.decode('utf-8'))
     # send something to the server
-    while True:
-        # Input = input("Let's send something to the server: ")
-        # client.socket.send(str.encode(Input))
-        client.socket.send(str.encode('I am client 3'))
-        time.sleep(3)
-        response = client.socket.recv(1024)
-        print(response.decode("utf-8"))
+    # while True:
+    #     # Input = input("Let's send something to the server: ")
+    #     # client.socket.send(str.encode(Input))
+    #     client3.socket.send(str.encode('I am client 3'))
+    #     time.sleep(3)
+    #     response = client3.socket.recv(1024)
+    #     print(response.decode("utf-8"))
+
+    for i, batch in enumerate(client3.train_loader):
+        x, y = batch
+        send_msg(sock=client3.socket, msg=pickle.dumps(x))
+        # response = client1.socket.recv(1024)
+        # response, _ = recv_msg(client3.socket)
+        # print(pickle.loads(response))
+        # break
+        print(i)
 
 
 if __name__ == "__main__":
