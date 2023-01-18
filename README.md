@@ -37,13 +37,8 @@ For the [PTB-XL dataset](https://physionet.org/content/ptb-xl/1.0.0/), you can r
 2. Install the required packages in the `requirements.txt`, e.g. `pip install -r requirements.txt`
 3. Install `hesplitnet` as a package using `pip install -e .`
 4. Specify the hyperparamters for your protocol in `conf/config.yaml`  
-5. For the protocol that only involves the server and one client:
+5. Running the protocol:
     - In the terminal, run `python hesplitnet/single-client/server.py`. The server will be started and waiting for the client.  
     - Open a new tab in the terminal and run `python hesplitnet/single-client/client.py`. The training process will start.
     - After the training is done, the logs and output files will be saved in the directory `outputs/<year_month_day>/<output_dir>` where `output_dir` is defined in `conf/config.yaml`.
     - After training, go to `notebooks/test_mitbih.ipynb` or `notebooks/test_ptbxl.ipynb` to run and inspect the testing procedure for the MIT-BIH or PTB-XL dataset respectively.
-6. For the protocol that has multiple clients (3 clients): 
-    -
-    -
-    -
-    -
