@@ -92,7 +92,7 @@ class Server:
             dry_run (bool): if True, only train on one batch of data
         """
         for i in range(total_batch):
-            if verbose: print(f"Batch {i+1}")
+            if verbose: print(f"\nBatch {i+1}")
             self.model.clear_grad_and_cache()
             enc_a, recv_size1 = recv_msg(sock=self.connection)
             enc_a = CKKSTensor.load(context=self.context,
@@ -122,11 +122,13 @@ class Server:
             if verbose: print(f"📨 Sending dJda of shape {dJda.shape} "
                               f"and size {send_size2} Mb to the client")
 
-            self.model.encrypt_weights(self.context, batch_encrypted)
+            # add some noise to the encrypted weights, update the weights.
+            # send them to the client and get back the decrypted weights, 
+            # then remove the noise. Do this to reset the
+            # multiplicative depth of the encrypted weights 
+            noise = torch.ones(self.model.params["W"].T.shape)
+            self.model.encrypt_weights(self.context, batch_encrypted, noise)
             enc_Wt = self.model.update_params(lr=lr) # updating the parameters
-
-            # send the encrypted weights to the client and 
-            # get back the decrypted weights to reset noise
             send_size3 = send_msg(sock=self.connection, msg=enc_Wt.serialize())
             if verbose: print(f"📨 Sending encrypted W of shape {enc_Wt.shape} "
                               f"and size {send_size3} Mb to the client")
@@ -134,6 +136,7 @@ class Server:
             Wt = pickle.loads(Wt)
             if verbose: print(f"📨 Received decrypted W of shape {Wt.shape} "
                               f"and size {recv_size4} Mb from the client")
+            Wt = Wt - noise
             self.model.set_weights(Wt.T)
 
             if dry_run: break

@@ -170,15 +170,18 @@ class Server1DCNN:
         self.grads = dict()
         self.cache = dict()
 
-    def encrypt_weights(self, context, batch_enc):
-        """Encrypt the weights
+    def encrypt_weights(self, context: Context, batch_enc: bool, noise):
+        """Add some noise and then encrypt the weights
 
         Args:
-            context (_type_): _description_
-            batch_encrypted (_type_): _description_
+            context (Context): The TenSeal context
+            batch_encrypted (bool): If true, encrypt using batching
+            noise (Tensor): The noise tensor
         """
         W = self.params['W']
-        enc_Wt = ts.CKKSTensor(context, W.T, batch=batch_enc)
+        noisy_Wt = W.T + noise
+        # enc_Wt = ts.CKKSTensor(context, W.T, batch=batch_enc)
+        enc_Wt = ts.CKKSTensor(context, noisy_Wt, batch=batch_enc)
         enc_Wt.reshape_([1, enc_Wt.shape[0]])
         self.params['enc_Wt'] = enc_Wt
 
