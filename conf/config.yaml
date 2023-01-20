@@ -3,7 +3,7 @@ dataset: MIT-BIH  # MIT-BIH or PTB-XL
 # hyperparams
 port: 10080
 verbose: True
-batch_size: 16
+batch_size: 4
 epoch: 10
 lr: 0.001
 seed: 0

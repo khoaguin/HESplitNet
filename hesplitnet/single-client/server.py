@@ -148,7 +148,7 @@ def main(cfg : DictConfig) -> None:
     log.info(f'project path: {project_path}')
     log.info(f'tenseal version: {ts.__version__}')
     log.info(f'torch version: {torch.__version__}')
-    output_dir = Path(HydraConfig.get().run.dir)
+    output_dir = project_path / Path(HydraConfig.get().run.dir)
     log.info(f'output directory: {output_dir}')
     log.info(f'hyperparameters: \n{OmegaConf.to_yaml(cfg)}')
     
