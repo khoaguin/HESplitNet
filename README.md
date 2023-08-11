@@ -1,5 +1,5 @@
 # HESplitNet
-Multi-party Privacy-preserving Neural Network Training using Split Learning and Homomorphic Encryption (CKKS Scheme).
+Two-party Privacy-preserving Neural Network Training using Split Learning and Homomorphic Encryption in CKKS Scheme.
 
 ## Requirements
 `python==3.9.7`  
