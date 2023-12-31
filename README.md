@@ -1,6 +1,7 @@
 # HESplitNet
-
 Two-party Privacy-preserving Neural Network Training using Split Learning and Homomorphic Encryption in CKKS Scheme.
+
+Source code of the paper [Split Without a Leak: Reducing Privacy Leakage in Split Learning accepted at the 19th EAI International Conference on Security and Privacy in Communication Networks (SecureComm’23)](https://arxiv.org/abs/2308.15783).
 
 ## Requirements
 
